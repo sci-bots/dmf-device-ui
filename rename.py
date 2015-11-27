@@ -65,4 +65,4 @@ def parse_args(args=None):
 
 if __name__ == '__main__':
     args = parse_args()
-    main('.', 'python-package-template', args.new_name)
+    main('.', 'dmf-device-ui', args.new_name)

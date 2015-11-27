@@ -2,6 +2,6 @@ include RELEASE-VERSION
 include version.py
 include setup.py
 include paver-minilib.zip
-recursive-include python_package_template *
-recursive-exclude python_package_template *.pyc
-recursive-exclude python_package_template *~
+recursive-include dmf_device_ui *
+recursive-exclude dmf_device_ui *.pyc
+recursive-exclude dmf_device_ui *~
