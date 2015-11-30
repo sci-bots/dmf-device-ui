@@ -19,7 +19,8 @@ class ShapesCanvas(object):
     specified *canvas* coordinates (or `None`, if no shape intersects with
     specified point).
     '''
-    def __init__(self, df_shapes, shape_i_columns, canvas_shape=None, padding_factor=0):
+    def __init__(self, df_shapes, shape_i_columns, canvas_shape=None,
+                 padding_fraction=0):
         '''
         Arguments
         ---------
@@ -45,13 +46,14 @@ class ShapesCanvas(object):
 
         self.df_canvas_shapes = fit_points_in_bounding_box(df_shapes,
                                                            canvas_shape,
-                                                           padding_factor=
-                                                           padding_factor)
+                                                           padding_fraction=
+                                                           padding_fraction)
 
         # Get x/y-offset and scale for later use
         self.canvas_offset, self.canvas_scale = \
             fit_points_in_bounding_box_params(df_shapes, canvas_shape,
-                                              padding_factor=padding_factor)
+                                              padding_fraction=
+                                              padding_fraction)
 
         # Tesselate *scaled* shapes into convex shapes and construct pymunk `Space`
 
