@@ -1,6 +1,7 @@
 # coding: utf-8
 import types
 
+from droplet_planning import svg_polygons_to_df
 from dmf_device_ui.tesselate import tesselate_shapes_frame
 from dmf_device_ui.point_query import get_shapes_pymunk_space
 from geo_util import (fit_points_in_bounding_box,
@@ -18,7 +19,7 @@ class ShapesCanvas(object):
     specified *canvas* coordinates (or `None`, if no shape intersects with
     specified point).
     '''
-    def __init__(self, df_shapes, shape_i_columns, canvas_shape, padding_factor=.05):
+    def __init__(self, df_shapes, shape_i_columns, canvas_shape=None, padding_factor=0):
         '''
         Arguments
         ---------
@@ -38,6 +39,8 @@ class ShapesCanvas(object):
         # Scale and center source points to canvas shape.
         self.source_shape = pd.Series(df_shapes[['x', 'y']].max().values,
                                       index=['width', 'height'])
+        if canvas_shape is None:
+            canvas_shape = self.source_shape.copy()
         self.canvas_shape = canvas_shape
 
         self.df_canvas_shapes = fit_points_in_bounding_box(df_shapes,
@@ -62,6 +65,13 @@ class ShapesCanvas(object):
         self.canvas_space, self.canvas_bodies = \
             get_shapes_pymunk_space(self.df_canvas_tesselations,
                                     shape_i_columns + ['triangle_i'])
+
+    @classmethod
+    def from_svg(cls, svg_filepath, *args, **kwargs):
+        # Read SVG polygons into dataframe, one row per polygon vertex.
+        df_shapes = svg_polygons_to_df(svg_filepath)
+
+        return cls(df_shapes, 'path_id', *args, **kwargs)
 
     def find_shape(self, canvas_x, canvas_y):
         '''
