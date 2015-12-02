@@ -17,7 +17,7 @@ setup(name='dmf-device-ui',
       url='https://github.com/wheeler-microfluidics/dmf-device-ui',
       license='GPL',
       packages=['dmf_device_ui', ],
-      install_requires=['svg_model>=0.4.post2', 'pymunk==2.1.0',
+      install_requires=['svg_model>=0.4.post3',
                         'wheeler.pygtkhelpers>=0.11.post1'],
       # Install data listed in `MANIFEST.in`
       include_package_data=True)
