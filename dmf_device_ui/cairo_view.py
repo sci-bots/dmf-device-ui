@@ -26,6 +26,7 @@ class DmfDeviceView(GtkShapesCanvasView):
 
         self.connections_attrs = {}
         self.last_pressed = None
+        self.last_hovered = None
 
         super(DmfDeviceView, self).__init__(df_shapes, 'path_id', **kwargs)
 
@@ -129,9 +130,19 @@ class DmfDeviceView(GtkShapesCanvasView):
         Called when mouse pointer is moved within drawing area.
         '''
         shape = self.canvas.find_shape(event.x, event.y)
-        if shape is None: return
-        #print '[motion_notify_event]', shape
-        self.notifier.notify("[motion_notify_event] %s" % shape)
+        if shape != self.last_hovered:
+            if self.last_hovered is not None:
+                # Leaving shape
+                self.notifier.notify({'signal': 'electrode_mouseout',
+                                      'data': {'electrode_id':
+                                               self.last_hovered}})
+                self.last_hovered = None
+            elif shape is not None:
+                # Entering shape
+                self.last_hovered = shape
+                self.notifier.notify({'signal': 'electrode_mouseover',
+                                      'data': {'electrode_id':
+                                               self.last_hovered}})
 
 
 class DmfDeviceNotifier(object):
