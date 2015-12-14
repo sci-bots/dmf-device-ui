@@ -8,6 +8,27 @@ from svg_model.shapes_canvas import ShapesCanvas
 
 
 class DmfDeviceView(GtkShapesCanvasView):
+    '''
+    Draw device layout from SVG file.
+
+    Mouse events are handled as follows:
+
+     - Click and release on the same electrode emits electrode selected signal.
+     - Click on one electrode, drag, and release on another electrode emits
+       electrode *pair* selected signal, with *source* electrode and *target*
+       electrode.
+     - Moving mouse cursor over electrode emits electrode mouse over signal.
+     - Moving mouse cursor out of electrode emits electrode mouse out signal.
+
+    Signals are published via a *notifier* member, which *MUST* implement the
+    following API:
+
+     - `notify(<python object>)`
+
+    The format of each signal is:
+
+        {'signal': '<signal label>', 'data': {...}}
+    '''
     def __init__(self, svg_filepath, notifier, connections_alpha=1.,
                  connections_color=1., **kwargs):
         # Read SVG polygons into dataframe, one row per polygon vertex.
