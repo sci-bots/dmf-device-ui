@@ -25,6 +25,7 @@ class DmfDeviceView(GtkShapesCanvasView):
         self.connections_color = connections_color
 
         self.connections_attrs = {}
+        self.last_pressed = None
 
         super(DmfDeviceView, self).__init__(df_shapes, 'path_id', **kwargs)
 
@@ -94,25 +95,34 @@ class DmfDeviceView(GtkShapesCanvasView):
 
     ###########################################################################
     # ## Mouse event handling ##
+
     def on_widget__button_press_event(self, widget, event):
         '''
         Called when any mouse button is pressed.
         '''
         shape = self.canvas.find_shape(event.x, event.y)
+
         if shape is None: return
-        #print '[button_press_event]', shape, event.button
-        self.notifier.notify("[button_press_event] %s %s" % (shape,
-                                                             event.button))
+        if event.button == 1:
+            if (event.state & gtk.gdk.CONTROL_MASK):
+                pass
+            else:
+                self.last_pressed = shape
 
     def on_widget__button_release_event(self, widget, event):
         '''
         Called when any mouse button is released.
         '''
         shape = self.canvas.find_shape(event.x, event.y)
+
         if shape is None: return
-        #print '[button_release_event]', shape, event.button
-        self.notifier.notify("[button_release_event] %s %s" % (shape,
-                                                               event.button))
+
+        if event.button == 1:
+            if self.last_pressed == shape:
+                self.notifier.notify("[electrode selected] %s" % shape)
+            else:
+                self.notifier.notify("[electrode pair selected] (%s, %s)" %
+                                     (shape, self.last_pressed))
 
     def on_widget__motion_notify_event(self, widget, event):
         '''
