@@ -8,6 +8,27 @@ from svg_model.shapes_canvas import ShapesCanvas
 
 
 class DmfDeviceView(GtkShapesCanvasView):
+    '''
+    Draw device layout from SVG file.
+
+    Mouse events are handled as follows:
+
+     - Click and release on the same electrode emits electrode selected signal.
+     - Click on one electrode, drag, and release on another electrode emits
+       electrode *pair* selected signal, with *source* electrode and *target*
+       electrode.
+     - Moving mouse cursor over electrode emits electrode mouse over signal.
+     - Moving mouse cursor out of electrode emits electrode mouse out signal.
+
+    Signals are published via a *notifier* member, which *MUST* implement the
+    following API:
+
+     - `notify(<python object>)`
+
+    The format of each signal is:
+
+        {'signal': '<signal label>', 'data': {...}}
+    '''
     def __init__(self, svg_filepath, notifier, connections_alpha=1.,
                  connections_color=1., **kwargs):
         # Read SVG polygons into dataframe, one row per polygon vertex.
@@ -25,6 +46,8 @@ class DmfDeviceView(GtkShapesCanvasView):
         self.connections_color = connections_color
 
         self.connections_attrs = {}
+        self.last_pressed = None
+        self.last_hovered = None
 
         super(DmfDeviceView, self).__init__(df_shapes, 'path_id', **kwargs)
 
@@ -94,34 +117,53 @@ class DmfDeviceView(GtkShapesCanvasView):
 
     ###########################################################################
     # ## Mouse event handling ##
+
     def on_widget__button_press_event(self, widget, event):
         '''
         Called when any mouse button is pressed.
         '''
         shape = self.canvas.find_shape(event.x, event.y)
+
         if shape is None: return
-        #print '[button_press_event]', shape, event.button
-        self.notifier.notify("[button_press_event] %s %s" % (shape,
-                                                             event.button))
+        if event.button == 1:
+            self.last_pressed = shape
 
     def on_widget__button_release_event(self, widget, event):
         '''
         Called when any mouse button is released.
         '''
         shape = self.canvas.find_shape(event.x, event.y)
+
         if shape is None: return
-        #print '[button_release_event]', shape, event.button
-        self.notifier.notify("[button_release_event] %s %s" % (shape,
-                                                               event.button))
+
+        if event.button == 1:
+            if self.last_pressed == shape:
+                self.notifier.notify({'signal': 'electrode_selected',
+                                      'data': {'electrode_id': shape}})
+            else:
+                self.notifier.notify({'signal': 'electrode_pair_selected',
+                                      'data': {'source_id': self.last_pressed,
+                                               'target_id': shape}})
+            self.last_pressed = None
 
     def on_widget__motion_notify_event(self, widget, event):
         '''
         Called when mouse pointer is moved within drawing area.
         '''
         shape = self.canvas.find_shape(event.x, event.y)
-        if shape is None: return
-        #print '[motion_notify_event]', shape
-        self.notifier.notify("[motion_notify_event] %s" % shape)
+        if shape != self.last_hovered:
+            if self.last_hovered is not None:
+                # Leaving shape
+                self.notifier.notify({'signal': 'electrode_mouseout',
+                                      'data': {'electrode_id':
+                                               self.last_hovered}})
+                self.last_hovered = None
+            elif shape is not None:
+                # Entering shape
+                self.last_hovered = shape
+                self.notifier.notify({'signal': 'electrode_mouseover',
+                                      'data': {'electrode_id':
+                                               self.last_hovered}})
 
 
 class DmfDeviceNotifier(object):
@@ -138,7 +180,7 @@ class DmfDeviceNotifier(object):
         print '*** Broadcasting events on %s' % self._bind_addr
 
     def notify(self, mssg):
-        self._socket.send(mssg)
+        self._socket.send_pyobj(mssg)
 
 
 def parse_args(args=None):
