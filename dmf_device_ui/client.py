@@ -20,7 +20,7 @@ def main():
     while True:
         try:
             try:
-                mssg = socket.recv(zmq.NOBLOCK)
+                mssg = socket.recv_pyobj(zmq.NOBLOCK)
                 print mssg
             except zmq.error.Again:
                 time.sleep(0.001)

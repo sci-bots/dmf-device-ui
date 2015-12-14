@@ -148,7 +148,7 @@ class DmfDeviceNotifier(object):
         print '*** Broadcasting events on %s' % self._bind_addr
 
     def notify(self, mssg):
-        self._socket.send(mssg)
+        self._socket.send_pyobj(mssg)
 
 
 def parse_args(args=None):
