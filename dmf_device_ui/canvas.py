@@ -1,13 +1,12 @@
-import zmq
-import gtk
-from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
+# -*- coding: utf-8 -*-
 from svg_model import svg_polygons_to_df
 from svg_model.color import hex_color_to_rgba
 from svg_model.connections import extract_connections
 from svg_model.shapes_canvas import ShapesCanvas
+from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
 
 
-class DmfDeviceView(GtkShapesCanvasView):
+class DmfDeviceCanvas(GtkShapesCanvasView):
     '''
     Draw device layout from SVG file.
 
@@ -48,11 +47,12 @@ class DmfDeviceView(GtkShapesCanvasView):
         self.connections_attrs = {}
         self.last_pressed = None
         self.last_hovered = None
+        self.connections_enabled = (self.connections_alpha > 0)
 
-        super(DmfDeviceView, self).__init__(df_shapes, 'path_id', **kwargs)
+        super(DmfDeviceCanvas, self).__init__(df_shapes, 'path_id', **kwargs)
 
     def create_ui(self, *args, **kwargs):
-        super(DmfDeviceView, self).create_ui(*args, **kwargs)
+        super(DmfDeviceCanvas, self).create_ui(*args, **kwargs)
         # Compute centers.
         svg_canvas = ShapesCanvas(self.df_shapes, 'path_id')
         self.df_shape_connections = extract_connections(self.svg_filepath,
@@ -61,7 +61,6 @@ class DmfDeviceView(GtkShapesCanvasView):
     def on_widget__expose_event(self, widget, event):
         from svg_model import compute_shape_centers
 
-        super(DmfDeviceView, self).on_widget__expose_event(widget, event)
         if self.canvas is None:
             return
 
@@ -84,7 +83,12 @@ class DmfDeviceView(GtkShapesCanvasView):
                                                     .target]
                    .reset_index(drop=True), lsuffix='_source',
                    rsuffix='_target'))
-        if self.connections_alpha > 0:
+
+        self.draw()
+
+    def draw(self):
+        self.draw_shapes()
+        if self.connections_enabled and self.connections_alpha > 0:
             self.draw_default_connections()
 
     def draw_default_connections(self):
@@ -164,58 +168,3 @@ class DmfDeviceView(GtkShapesCanvasView):
                 self.notifier.notify({'signal': 'electrode_mouseover',
                                       'data': {'electrode_id':
                                                self.last_hovered}})
-
-
-class DmfDeviceNotifier(object):
-    '''
-    Publisher
-    '''
-    def __init__(self):
-        self._context = zmq.Context()
-        self._socket = self._context.socket(zmq.PUB)
-
-    def bind(self, bind_addr, bind_to):
-        self._bind_addr = "%s:%s" % (bind_addr, bind_to)
-        self._socket.bind(self._bind_addr)
-        print '*** Broadcasting events on %s' % self._bind_addr
-
-    def notify(self, mssg):
-        self._socket.send_pyobj(mssg)
-
-
-def parse_args(args=None):
-    '''Parses arguments, returns (options, args).'''
-    import sys
-    from argparse import ArgumentParser
-    from path_helpers import path
-
-    if args is None:
-        args = sys.argv
-
-    parser = ArgumentParser(description='Example app for drawing shapes from '
-                            'dataframe, scaled to fit to GTK canvas while '
-                            'preserving aspect ratio (a.k.a., aspect fit).')
-    parser.add_argument('svg_filepath', type=path, default=None)
-    parser.add_argument('-p', '--padding-fraction', type=float, default=0)
-    parser.add_argument('-a', '--connections-alpha', type=float, default=1)
-    parser.add_argument('-c', '--connections-color', default='#ffffff')
-    parser.add_argument('-w', '--connections-width', type=float, default=1)
-    parser.add_argument('--address', type=str, default='tcp://*')
-    parser.add_argument('--port', type=int, default=5000)
-
-    args = parser.parse_args()
-    return args
-
-
-if __name__ == '__main__':
-    args = parse_args()
-    notifier = DmfDeviceNotifier()
-    notifier.bind(args.address, args.port)
-    view = DmfDeviceView(args.svg_filepath, notifier,
-                         connections_color=args.connections_color,
-                         connections_alpha=args.connections_alpha,
-                         padding_fraction=args.padding_fraction)
-    view.connections_attrs['line_width'] = args.connections_width
-    print view.svg_filepath
-    view.widget.connect('destroy', gtk.main_quit)
-    view.show_and_run()
