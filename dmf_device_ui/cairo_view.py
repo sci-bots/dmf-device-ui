@@ -104,10 +104,7 @@ class DmfDeviceView(GtkShapesCanvasView):
 
         if shape is None: return
         if event.button == 1:
-            if (event.state & gtk.gdk.CONTROL_MASK):
-                pass
-            else:
-                self.last_pressed = shape
+            self.last_pressed = shape
 
     def on_widget__button_release_event(self, widget, event):
         '''
@@ -119,10 +116,13 @@ class DmfDeviceView(GtkShapesCanvasView):
 
         if event.button == 1:
             if self.last_pressed == shape:
-                self.notifier.notify("[electrode selected] %s" % shape)
+                self.notifier.notify({'signal': 'electrode_selected',
+                                      'data': {'electrode_id': shape}})
             else:
-                self.notifier.notify("[electrode pair selected] (%s, %s)" %
-                                     (shape, self.last_pressed))
+                self.notifier.notify({'signal': 'electrode_pair_selected',
+                                      'data': {'source_id': self.last_pressed,
+                                               'target_id': shape}})
+            self.last_pressed = None
 
     def on_widget__motion_notify_event(self, widget, event):
         '''
