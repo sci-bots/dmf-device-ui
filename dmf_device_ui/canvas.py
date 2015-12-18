@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
+import cairo
+from pygtkhelpers.utils import gsignal
+from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
 from svg_model import svg_polygons_to_df
 from svg_model.color import hex_color_to_rgba
 from svg_model.connections import extract_connections
 from svg_model.shapes_canvas import ShapesCanvas
-from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
 
 
 class DmfDeviceCanvas(GtkShapesCanvasView):
@@ -28,6 +30,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         {'signal': '<signal label>', 'data': {...}}
     '''
+    gsignal('electrode-mouseover', object)
+    gsignal('electrode-mouseout', object)
+
     def __init__(self, svg_filepath, notifier, connections_alpha=1.,
                  connections_color=1., **kwargs):
         # Read SVG polygons into dataframe, one row per polygon vertex.
@@ -58,11 +63,10 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.df_shape_connections = extract_connections(self.svg_filepath,
                                                         svg_canvas)
 
-    def on_widget__expose_event(self, widget, event):
+    def reset_canvas(self, width, height):
         from svg_model import compute_shape_centers
 
-        if self.canvas is None:
-            return
+        super(DmfDeviceCanvas, self).reset_canvas(width, height)
 
         self.canvas.df_canvas_shapes = compute_shape_centers(self.canvas
                                                             .df_canvas_shapes
@@ -84,21 +88,44 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                    .reset_index(drop=True), lsuffix='_source',
                    rsuffix='_target'))
 
-        self.draw()
+    @property
+    def connection_count(self):
+        return self.df_shape_connections.shape[0]
 
-    def draw(self):
-        self.draw_shapes()
-        if self.connections_enabled and self.connections_alpha > 0:
-            self.draw_default_connections()
+    @property
+    def shape_count(self):
+        return self.df_shapes.path_id.unique().shape[0]
 
-    def draw_default_connections(self):
-        self.draw_connections(hex_color=self.connections_color,
+    def render_background(self, cairo_context=None):
+        if cairo_context is None:
+            cairo_context = self.widget.window.cairo_create()
+
+        x, y, width, height = self.widget.get_allocation()
+        cairo_context.rectangle(0, 0, width, height)
+        cairo_context.set_source_rgb(0, 0, 0)
+        cairo_context.fill()
+
+    def render(self):
+        self.reset_cairo_surface()
+        cairo_context = cairo.Context(self.cairo_surface)
+        self.render_background(cairo_context=cairo_context)
+        self.render_shapes(cairo_context=cairo_context)
+        if (hasattr(self.canvas, 'df_connection_centers') and
+            self.connections_enabled and self.connections_alpha > 0):
+
+            self.render_default_connections(cairo_context=cairo_context)
+
+    def render_default_connections(self, cairo_context=None):
+        self.render_connections(hex_color=self.connections_color,
                               alpha=self.connections_alpha,
+                              cairo_context=cairo_context,
                               **self.connections_attrs)
 
-    def draw_connections(self, indexes=None, hex_color='#fff', alpha=1.,
-                         **kwargs):
-        cairo_context = self.widget.window.cairo_create()
+    def render_connections(self, indexes=None, hex_color='#fff', alpha=1.,
+                           cairo_context=None, **kwargs):
+        if cairo_context is None:
+            cairo_context = self.widget.window.cairo_create()
+
         coords_columns = ['source', 'target',
                           'x_center_source', 'y_center_source',
                           'x_center_target', 'y_center_target']
@@ -161,6 +188,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 self.notifier.notify({'signal': 'electrode_mouseout',
                                       'data': {'electrode_id':
                                                self.last_hovered}})
+                self.emit('electrode-mouseout', {'electrode_id':
+                                                 self.last_hovered})
                 self.last_hovered = None
             elif shape is not None:
                 # Entering shape
@@ -168,3 +197,5 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 self.notifier.notify({'signal': 'electrode_mouseover',
                                       'data': {'electrode_id':
                                                self.last_hovered}})
+                self.emit('electrode-mouseover', {'electrode_id':
+                                                  self.last_hovered})
