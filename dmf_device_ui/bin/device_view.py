@@ -26,7 +26,6 @@ def parse_args(args=None):
     '''Parses arguments, returns (options, args).'''
     import sys
     from argparse import ArgumentParser
-    from path_helpers import path
 
     if args is None:
         args = sys.argv
@@ -34,7 +33,6 @@ def parse_args(args=None):
     parser = ArgumentParser(description='Example app for drawing shapes from '
                             'dataframe, scaled to fit to GTK canvas while '
                             'preserving aspect ratio (a.k.a., aspect fit).')
-    parser.add_argument('svg_filepath', type=path, default=None)
     parser.add_argument('-p', '--padding-fraction', type=float, default=0)
     parser.add_argument('-a', '--connections-alpha', type=float, default=.5)
     parser.add_argument('-c', '--connections-color', default='#ffffff')
@@ -50,7 +48,7 @@ if __name__ == '__main__':
     args = parse_args()
     notifier = DmfDeviceNotifier()
     notifier.bind(args.address, args.port)
-    canvas = DmfDeviceCanvas(args.svg_filepath, notifier,
+    canvas = DmfDeviceCanvas(notifier,
                              connections_color=args.connections_color,
                              connections_alpha=args.connections_alpha,
                              padding_fraction=args.padding_fraction)

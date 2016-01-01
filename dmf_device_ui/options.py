@@ -121,3 +121,44 @@ class DeviceViewOptions(SlaveView):
     @labels.setter
     def labels(self, active):
         self.labels_button.set_property('active', active)
+
+
+class DeviceLoader(SlaveView):
+    gsignal('device-loaded', object)
+
+    def create_ui(self):
+        super(DeviceLoader, self).create_ui()
+        self.widget.set_orientation(gtk.ORIENTATION_HORIZONTAL)
+
+        self.plugin_uri_label = gtk.Label('Plugin hub URI:')
+        self.plugin_uri = gtk.Entry()
+        self.plugin_uri.set_text('tcp://localhost:31000')
+        self.plugin_uri.set_width_chars(len(self.plugin_uri.get_text()))
+        self.ui_plugin_name_label = gtk.Label('UI plugin name:')
+        self.ui_plugin_name = gtk.Entry()
+        self.ui_plugin_name.set_text('dmf-device-ui')
+        self.ui_plugin_name.set_width_chars(len(self.ui_plugin_name
+                                                .get_text()))
+        self.device_plugin_name_label = gtk.Label('Device plugin name:')
+        self.device_plugin_name = gtk.Entry()
+        self.device_plugin_name.set_text('wheelerlab.device_info_plugin')
+        self.device_plugin_name.set_width_chars(len(self.device_plugin_name
+                                                    .get_text()))
+        self.load_device_button = gtk.Button('Load device')
+
+        widgets = [self.plugin_uri_label, self.plugin_uri,
+                   self.ui_plugin_name_label, self.ui_plugin_name,
+                   self.device_plugin_name_label, self.device_plugin_name,
+                   self.load_device_button]
+        for w in widgets:
+            self.widget.pack_start(w, False, False, 5)
+
+    def on_load_device_button__clicked(self, event):
+        from zmq_plugin.plugin import Plugin
+
+        hub_uri = self.plugin_uri.get_text()
+        ui_plugin_name = self.ui_plugin_name.get_text()
+        plugin = Plugin(ui_plugin_name, hub_uri); plugin.reset()
+        device = plugin.execute('wheelerlab.device_info_plugin', 'get_device')
+        self.emit('device-loaded', device)
+

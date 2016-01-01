@@ -1,7 +1,8 @@
 # -*- coding: utf-8 -*-
 import gtk
 from pygtkhelpers.delegates import SlaveView
-from .options import DeviceViewOptions, DeviceViewInfo, DebugView
+from .options import (DeviceViewOptions, DeviceViewInfo, DebugView,
+                      DeviceLoader)
 
 
 class DmfDeviceView(SlaveView):
@@ -14,6 +15,7 @@ class DmfDeviceView(SlaveView):
         self.widget.set_orientation(gtk.ORIENTATION_VERTICAL)
         self.info_slave = self.add_slave(DeviceViewInfo(), 'widget')
         self.options_slave = self.add_slave(DeviceViewOptions(), 'widget')
+        self.loader_slave = self.add_slave(DeviceLoader(), 'widget')
         self.debug_slave = self.add_slave(DebugView(), 'widget')
         self.canvas_slave = self.add_slave(self.device_canvas, 'widget')
 
@@ -51,3 +53,6 @@ class DmfDeviceView(SlaveView):
 
     def on_canvas_slave__electrode_mouseout(self, slave, data):
         self.info_slave.electrode_id = ''
+
+    def on_loader_slave__device_loaded(self, slave, device):
+        self.canvas_slave.set_device(device)

@@ -1,11 +1,12 @@
 # -*- coding: utf-8 -*-
-import cairo
-from pygtkhelpers.utils import gsignal
 from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
-from svg_model import svg_polygons_to_df
+from pygtkhelpers.utils import gsignal
 from svg_model.color import hex_color_to_rgba
 from svg_model.connections import extract_connections
 from svg_model.shapes_canvas import ShapesCanvas
+import cairo
+import gtk
+import pandas as pd
 
 
 class DmfDeviceCanvas(GtkShapesCanvasView):
@@ -33,13 +34,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('electrode-mouseover', object)
     gsignal('electrode-mouseout', object)
 
-    def __init__(self, svg_filepath, notifier, connections_alpha=1.,
-                 connections_color=1., **kwargs):
+    def __init__(self, notifier, connections_alpha=1., connections_color=1.,
+                 **kwargs):
         # Read SVG polygons into dataframe, one row per polygon vertex.
-        df_shapes = svg_polygons_to_df(svg_filepath)
-
-        # Add SVG file path as attribute.
-        self.svg_filepath = svg_filepath
+        df_shapes = pd.DataFrame(None, columns=['id', 'vertex_i', 'x', 'y'])
+        self.device = None
+        self.shape_i_column = 'id'
 
         self.notifier = notifier
 
@@ -54,47 +54,48 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.last_hovered = None
         self.connections_enabled = (self.connections_alpha > 0)
 
-        super(DmfDeviceCanvas, self).__init__(df_shapes, 'path_id', **kwargs)
+        super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
+                                              **kwargs)
 
-    def create_ui(self, *args, **kwargs):
-        super(DmfDeviceCanvas, self).create_ui(*args, **kwargs)
-        # Compute centers.
-        svg_canvas = ShapesCanvas(self.df_shapes, 'path_id')
-        self.df_shape_connections = extract_connections(self.svg_filepath,
-                                                        svg_canvas)
+    def set_device(self, dmf_device):
+        self.device = dmf_device
+        self.df_shapes = self.device.df_shapes
+        x, y, width, height = self.widget.get_allocation()
+        if width > 0 and height > 0:
+            gtk.idle_add(self.on_canvas_reset_tick, width, height)
 
     def reset_canvas(self, width, height):
         from svg_model import compute_shape_centers
 
         super(DmfDeviceCanvas, self).reset_canvas(width, height)
+        if self.device is None:
+            return
 
-        self.canvas.df_canvas_shapes = compute_shape_centers(self.canvas
-                                                            .df_canvas_shapes
-                                                             [['path_id',
-                                                               'vertex_i', 'x',
-                                                               'y']],
-                                                             'path_id')
+        self.canvas.df_canvas_shapes =\
+            compute_shape_centers(self.canvas.df_canvas_shapes
+                                  [[self.shape_i_column, 'vertex_i', 'x',
+                                    'y']], self.shape_i_column)
         self.canvas.df_shape_centers = (self.canvas.df_canvas_shapes
-                                        [['path_id', 'x_center', 'y_center']]
-                                        .drop_duplicates()
-                                        .set_index('path_id'))
+                                        [[self.shape_i_column, 'x_center',
+                                          'y_center']].drop_duplicates()
+                                        .set_index(self.shape_i_column))
+        df_shape_connections = self.device.df_shape_connections
         self.canvas.df_connection_centers =\
-            (self.df_shape_connections.join(self.canvas.df_shape_centers
-                                            .loc[self.df_shape_connections
-                                                 .source]
-                                            .reset_index(drop=True))
-             .join(self.canvas.df_shape_centers.loc[self.df_shape_connections
+            (df_shape_connections.join(self.canvas.df_shape_centers
+                                       .loc[df_shape_connections.source]
+                                       .reset_index(drop=True))
+             .join(self.canvas.df_shape_centers.loc[df_shape_connections
                                                     .target]
                    .reset_index(drop=True), lsuffix='_source',
                    rsuffix='_target'))
 
     @property
     def connection_count(self):
-        return self.df_shape_connections.shape[0]
+        return self.device.df_shape_connections.shape[0] if self.device else 0
 
     @property
     def shape_count(self):
-        return self.df_shapes.path_id.unique().shape[0]
+        return self.df_shapes[self.shape_i_column].unique().shape[0]
 
     def render_background(self, cairo_context=None):
         if cairo_context is None:
