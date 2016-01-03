@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 import gtk
+import pandas as pd
 from pygtkhelpers.delegates import SlaveView
 from .options import (DeviceViewOptions, DeviceViewInfo, DebugView,
                       DeviceLoader)
@@ -54,5 +55,66 @@ class DmfDeviceView(SlaveView):
     def on_canvas_slave__electrode_mouseout(self, slave, data):
         self.info_slave.electrode_id = ''
 
+    def on_canvas_slave__electrode_selected(self, slave, data):
+        if self.loader_slave.plugin is not None:
+            state = (self.canvas_slave.electrode_states
+                     .get(data['electrode_id'], 0))
+            (self.loader_slave.plugin
+             .execute('wheelerlab.electrode_controller_plugin',
+                      'set_electrode_states',
+                      electrode_states=
+                      pd.Series([not state], index=[data['electrode_id']])))
+
+    def on_canvas_slave__electrode_pair_selected(self, slave, data):
+        '''
+        Process pair of selected electrodes.
+
+        For now, this consists of finding the shortest path between the two
+        electrodes and appending it to the list of droplet routes for the
+        current step.
+
+        Note that the droplet routes for a step are stored in a frame/table in
+        the `DmfDeviceController` step options.
+        '''
+        import networkx as nx
+
+        source_id = data['source_id']
+        target_id = data['target_id']
+
+        if self.canvas_slave.device is None or (self.loader_slave.plugin is
+                                                None):
+            return
+        try:
+            shortest_path = self.canvas_slave.device.find_path(source_id,
+                                                               target_id)
+            plugin = self.loader_slave.plugin
+            plugin.execute_async('wheelerlab.droplet_planning_plugin',
+                                 'add_route', drop_route=shortest_path)
+        except nx.NetworkXNoPath:
+            print 'no path found'
+
     def on_loader_slave__device_loaded(self, slave, device):
         self.canvas_slave.set_device(device)
+
+    def on_loader_slave__electrode_states_updated(self, slave, states):
+        updated_electrode_states = \
+            states['electrode_states'].combine_first(self.canvas_slave
+                                                     .electrode_states)
+        if not (self.canvas_slave.electrode_states
+                .equals(updated_electrode_states)):
+            self.canvas_slave.electrode_states = updated_electrode_states
+            self.canvas_slave.render()
+            gtk.idle_add(self.canvas_slave.draw)
+
+    def on_loader_slave__electrode_states_set(self, slave, states):
+        if not (self.canvas_slave.electrode_states
+                .equals(states['electrode_states'])):
+            self.canvas_slave.electrode_states = states['electrode_states']
+            self.canvas_slave.render()
+            gtk.idle_add(self.canvas_slave.draw)
+
+    def on_loader_slave__routes_set(self, slave, df_routes):
+        if not self.canvas_slave.df_routes.equals(df_routes):
+            self.canvas_slave.df_routes = df_routes
+            self.canvas_slave.render()
+            gtk.idle_add(self.canvas_slave.draw)
