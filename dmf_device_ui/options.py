@@ -14,6 +14,8 @@ from zmq_plugin.schema import decode_content_data
 logger = logging.getLogger(__name__)
 
 
+def gtk_wait(wait_duration_s): gtk.main_iteration_do()
+
 class DebugView(SlaveView):
     def create_ui(self):
         super(DebugView, self).create_ui()
@@ -176,57 +178,18 @@ class DeviceLoader(SlaveView):
         hub_uri = self.plugin_uri.get_text()
         ui_plugin_name = self.ui_plugin_name.get_text()
 
+        # Cancel periodic plugin callback (if started).
         self.cleanup()
         self.plugin = Plugin(ui_plugin_name, hub_uri,
                              subscribe_options={zmq.SUBSCRIBE: ''})
         # Initialize sockets.
         self.plugin.reset()
-        def check_sockets():
-            try:
-                msg_frames = (self.plugin.command_socket
-                              .recv_multipart(zmq.NOBLOCK))
-            except zmq.Again:
-                pass
-            else:
-                self.plugin.on_command_recv(msg_frames)
-            try:
-                msg_frames = (self.plugin.subscribe_socket
-                              .recv_multipart(zmq.NOBLOCK))
-                source, target, msg_type, msg_json = msg_frames
-                if ((source == 'wheelerlab.electrode_controller_plugin') and
-                    (msg_type == 'execute_reply')):
-                    msg = json.loads(msg_json)
-                    if msg['content']['command'] in ('set_electrode_state',
-                                                     'set_electrode_states'):
-                        data = decode_content_data(msg)
-                        self.emit('electrode-states-updated', data)
-                    elif msg['content']['command'] == 'get_channel_states':
-                        data = decode_content_data(msg)
-                        self.emit('electrode-states-set', data)
-                elif ((source == 'wheelerlab.droplet_planning_plugin') and
-                      (msg_type == 'execute_reply')):
-                    msg = json.loads(msg_json)
-                    if msg['content']['command'] in ('add_route', ):
-                        self.plugin.execute_async(
-                            'wheelerlab.droplet_planning_plugin',
-                            'get_routes')
-                    elif msg['content']['command'] in ('get_routes', ):
-                        data = decode_content_data(msg)
-                        self.emit('routes-set', data)
-                else:
-                    print '[check_sockets]', source, target, msg_type
-                    self.most_recent = msg_json
-            except zmq.Again:
-                pass
-            except:
-                logger.error('Error processing message from subscription '
-                             'socket.', exc_info=True)
 
-            return True
-
+        # Block until device is retrieved from device info plugin.
         device = self.plugin.execute('wheelerlab.device_info_plugin',
-                                     'get_device')
-        self.socket_timeout_id = gobject.timeout_add(10, check_sockets)
+                                     'get_device', wait_func=gtk_wait)
+        # Periodically process outstanding plugin socket messages.
+        self.socket_timeout_id = gobject.timeout_add(10, self.check_sockets)
         self.emit('device-loaded', device)
         # Request initial electrode/channel states.
         self.plugin.execute_async('wheelerlab.electrode_controller_plugin',
@@ -237,3 +200,51 @@ class DeviceLoader(SlaveView):
             gobject.source_remove(self.socket_timeout_id)
         if self.plugin is not None:
             self.plugin = None
+
+    def check_sockets(self):
+        try:
+            msg_frames = (self.plugin.command_socket
+                          .recv_multipart(zmq.NOBLOCK))
+        except zmq.Again:
+            pass
+        else:
+            self.plugin.on_command_recv(msg_frames)
+        try:
+            msg_frames = (self.plugin.subscribe_socket
+                          .recv_multipart(zmq.NOBLOCK))
+            source, target, msg_type, msg_json = msg_frames
+            if ((source == 'wheelerlab.electrode_controller_plugin') and
+                (msg_type == 'execute_reply')):
+                msg = json.loads(msg_json)
+                if msg['content']['command'] in ('set_electrode_state',
+                                                 'set_electrode_states'):
+                    data = decode_content_data(msg)
+                    if data is None:
+                        print msg
+                    else:
+                        self.emit('electrode-states-updated', data)
+                elif msg['content']['command'] == 'get_channel_states':
+                    data = decode_content_data(msg)
+                    if data is None:
+                        print msg
+                    else:
+                        self.emit('electrode-states-set', data)
+            elif ((source == 'wheelerlab.droplet_planning_plugin') and
+                  (msg_type == 'execute_reply')):
+                msg = json.loads(msg_json)
+                if msg['content']['command'] in ('add_route', ):
+                    self.plugin.execute_async('wheelerlab'
+                                              '.droplet_planning_plugin',
+                                              'get_routes')
+                elif msg['content']['command'] in ('get_routes', ):
+                    data = decode_content_data(msg)
+                    self.emit('routes-set', data)
+            else:
+                self.most_recent = msg_json
+        except zmq.Again:
+            pass
+        except:
+            logger.error('Error processing message from subscription '
+                         'socket.', exc_info=True)
+
+        return True
