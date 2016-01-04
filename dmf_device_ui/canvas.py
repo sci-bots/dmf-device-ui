@@ -32,6 +32,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         {'signal': '<signal label>', 'data': {...}}
     '''
+    gsignal('device-set', object)
     gsignal('electrode-selected', object)
     gsignal('electrode-pair-selected', object)
     gsignal('electrode-mouseover', object)
@@ -79,6 +80,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         x, y, width, height = self.widget.get_allocation()
         if width > 0 and height > 0:
             gtk.idle_add(self.on_canvas_reset_tick, width, height)
+        self.emit('device-set', dmf_device)
 
     def reset_canvas(self, width, height):
         from svg_model import compute_shape_centers
