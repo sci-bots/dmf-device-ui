@@ -191,9 +191,14 @@ class DeviceLoader(SlaveView):
         # Periodically process outstanding plugin socket messages.
         self.socket_timeout_id = gobject.timeout_add(10, self.check_sockets)
         self.emit('device-loaded', device)
-        # Request initial electrode/channel states.
+
+    def request_refresh(self):
+        # Request electrode/channel states.
         self.plugin.execute_async('wheelerlab.electrode_controller_plugin',
                                   'get_channel_states')
+        # Request routes.
+        self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+                                  'get_routes')
 
     def cleanup(self):
         if self.socket_timeout_id is not None:

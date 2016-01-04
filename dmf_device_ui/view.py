@@ -95,6 +95,7 @@ class DmfDeviceView(SlaveView):
 
     def on_loader_slave__device_loaded(self, slave, device):
         self.canvas_slave.set_device(device)
+        self.loader_slave.request_refresh()
 
     def on_loader_slave__electrode_states_updated(self, slave, states):
         updated_electrode_states = \
