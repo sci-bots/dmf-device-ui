@@ -6,6 +6,7 @@ from pygtkhelpers.utils import gsignal
 from svg_model.color import hex_color_to_rgba
 import cairo
 import gtk
+import numpy as np
 import pandas as pd
 
 
@@ -221,7 +222,15 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         # Save cairo context to restore after drawing route.
         cr.save()
         if color is None:
-            color = []
+            # Colors from ["Show me the numbers"][1].
+            #
+            # [1]: http://blog.axc.net/its-the-colors-you-have/
+            # LiteOrange = rgb(251,178,88);
+            # MedOrange = rgb(250,164,58);
+            # LiteGreen = rgb(144,205,151);
+            # MedGreen = rgb(96,189,104);
+            color_rgb_255 = np.array([96,189,104])
+            color = (color_rgb_255 / 255.).tolist()
         if len(color) < 4:
             color += [1.] * (4 - len(color))
         cr.set_source_rgba(*color)
@@ -231,7 +240,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         if line_width is None:
             line_width = np.sqrt((df_endpoint_marker.max().values -
                                   df_endpoint_marker.min().values).prod()) * .1
-        cr.set_line_width(2)
+        cr.set_line_width(4)
         cr.stroke()
 
         cr.move_to(*df_endpoint_marker.iloc[0])
