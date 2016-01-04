@@ -1,7 +1,9 @@
 # -*- coding: utf-8 -*-
+from microdrop_utility.gui import register_shortcuts
+from pygtkhelpers.delegates import SlaveView
 import gtk
 import pandas as pd
-from pygtkhelpers.delegates import SlaveView
+
 from .options import (DeviceViewOptions, DeviceViewInfo, DebugView,
                       DeviceLoader)
 
@@ -119,3 +121,21 @@ class DmfDeviceView(SlaveView):
             self.canvas_slave.df_routes = df_routes
             self.canvas_slave.render()
             gtk.idle_add(self.canvas_slave.draw)
+
+    def on_widget__realize(self, *args):
+        self.register_shortcuts()
+
+    def register_shortcuts(self):
+        def control_protocol(command):
+            if self.loader_slave.plugin is not None:
+                self.loader_slave.plugin.execute_async(
+                    'microdrop.gui.protocol_controller',
+                    command)
+
+        # Tie shortcuts to protocol controller commands (next, previous, etc.)
+        shortcuts = {'space': lambda *args: control_protocol('run_protocol'),
+                     'A': lambda *args: control_protocol('first_step'),
+                     'S': lambda *args: control_protocol('prev_step'),
+                     'D': lambda *args: control_protocol('next_step'),
+                     'F': lambda *args: control_protocol('last_step')}
+        register_shortcuts(self.widget.parent, shortcuts)
