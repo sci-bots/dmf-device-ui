@@ -1,24 +1,27 @@
 import sys
 
-from paver.easy import task, needs, path, sh, cmdopts, options
+from paver.easy import task, needs, path
 from paver.setuputils import setup, install_distutils_tasks
-from distutils.extension import Extension
-from distutils.dep_util import newer
 
 sys.path.insert(0, path('.').abspath())
 import version
 
+install_distutils_tasks()
+
 setup(name='dmf-device-ui',
       version=version.getVersion(),
-      description='Add description here.',
+      description='Device user interface for Microdrop digital microfluidics '
+      '(DMF) control software.',
       keywords='',
       author='Christian Fobel',
       author_email='christian@fobel.net',
       url='https://github.com/wheeler-microfluidics/dmf-device-ui',
-      license='GPL',
-      packages=['dmf_device_ui', ],
-      install_requires=['svg_model>=0.4.post11',
-                        'wheeler.pygtkhelpers>=0.11.post1'],
+      license='LGPLv2.1',
+      packages=['dmf_device_ui'],
+      install_requires=['microdrop-utility>=0.4', 'networkx>=1.10', 'pandas',
+                        'path-helpers>=0.2', 'svg_model>=0.5.post10',
+                        'wheeler.pygtkhelpers>=0.11.post4',
+                        'zmq-plugin>=0.1.post7'],
       # Install data listed in `MANIFEST.in`
       include_package_data=True)
 
