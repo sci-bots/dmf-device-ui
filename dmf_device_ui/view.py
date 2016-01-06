@@ -7,32 +7,37 @@ from pygtkhelpers.delegates import SlaveView
 import gobject
 import gtk
 import pandas as pd
+import zmq
 
 from .options import DeviceViewOptions, DeviceViewInfo, DebugView
-from .plugin import DevicePluginConnection
-from . import gtk_wait
+from .plugin import DevicePluginConnection, DevicePlugin
+from . import gtk_wait, generate_plugin_name
 
 logger = logging.getLogger(__name__)
 
 
-class DmfDeviceView(SlaveView):
-    def __init__(self, device_canvas):
+class DmfDeviceViewBase(SlaveView):
+    def __init__(self, device_canvas, hub_uri='tcp://localhost:31000',
+                 plugin_name=None):
         self.device_canvas = device_canvas
+        self._hub_uri = 'tcp://localhost:31000'
+        self._plugin_name = generate_plugin_name()
         self.plugin = None
         self.socket_timeout_id = None
         self.heartbeat_timeout_id = None
         self.heartbeat_alive_timestamp = None
-        super(DmfDeviceView, self).__init__()
+        super(DmfDeviceViewBase, self).__init__()
 
-    def create_ui(self):
-        super(DmfDeviceView, self).create_ui()
-        self.widget.set_orientation(gtk.ORIENTATION_VERTICAL)
+    def create_slaves(self):
         self.info_slave = self.add_slave(DeviceViewInfo(), 'widget')
         self.options_slave = self.add_slave(DeviceViewOptions(), 'widget')
-        self.plugin_slave = self.add_slave(DevicePluginConnection(self),
-                                           'widget')
         self.debug_slave = self.add_slave(DebugView(), 'widget')
         self.canvas_slave = self.add_slave(self.device_canvas, 'widget')
+
+    def create_ui(self):
+        super(DmfDeviceViewBase, self).create_ui()
+        self.widget.set_orientation(gtk.ORIENTATION_VERTICAL)
+        self.create_slaves()
 
         self.info_slave.connection_count = self.canvas_slave.connection_count
         self.info_slave.electrode_count = self.canvas_slave.shape_count
@@ -128,7 +133,6 @@ class DmfDeviceView(SlaveView):
             gobject.source_remove(self.socket_timeout_id)
         if self.plugin is not None:
             self.plugin = None
-        self.plugin_slave.reset()
 
     ###########################################################################
     # ZeroMQ plugin callbacks
@@ -156,7 +160,7 @@ class DmfDeviceView(SlaveView):
         logger.error('Timed out waiting for heartbeat ping.')
         self.cleanup()
 
-    def on_plugin_slave__plugin_connected(self, slave, plugin):
+    def on_plugin_connected(self, plugin):
         self.plugin = plugin
 
         # Block until device is retrieved from device info plugin.
@@ -196,3 +200,38 @@ class DmfDeviceView(SlaveView):
             self.canvas_slave.df_routes = df_routes
             self.canvas_slave.render()
             gtk.idle_add(self.canvas_slave.draw)
+
+
+
+class DmfDeviceFixedHubView(DmfDeviceViewBase):
+    '''
+    DMF device user interface (hub URI and plugin name fixed upon creation).
+    '''
+    def connect_plugin(self):
+        logger.info('Connect plugin')
+        plugin = DevicePlugin(self, self._plugin_name, self._hub_uri,
+                              subscribe_options={zmq.SUBSCRIBE: ''})
+        plugin.reset()
+        self.on_plugin_connected(plugin)
+        logger.info('Plugin connected.')
+
+
+class DmfDeviceConfigurableHubView(DmfDeviceViewBase):
+    '''
+    DMF device user interface with configurable hub URI and plugin name.
+
+    Plugin connection is only established upon clicking the `"Connect"` button.
+    '''
+
+    def cleanup(self):
+        self.plugin_slave.reset()
+        super(DmfDeviceConnectionView, self).cleanup()
+
+    def create_slaves(self):
+        self.plugin_slave =\
+            self.add_slave(DevicePluginConnection(self, self._hub_uri,
+                                                  self._plugin_name), 'widget')
+        super(DmfDeviceConfigurableHubView, self).create_slaves()
+
+    def on_plugin_slave__plugin_connected(self, slave, plugin):
+        self.on_plugin_connected(plugin)

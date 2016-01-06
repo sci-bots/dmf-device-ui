@@ -15,11 +15,14 @@
 # [2]: http://cairographics.org/FAQ/#paint_from_a_surface
 #
 # # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+import pkg_resources
+
 import gtk
 import logging
 
-from ..view import DmfDeviceView
 from ..canvas import DmfDeviceCanvas
+from ..view import DmfDeviceFixedHubView, DmfDeviceConfigurableHubView
+from .. import generate_plugin_name
 
 
 def parse_args(args=None):
@@ -37,6 +40,19 @@ def parse_args(args=None):
     parser.add_argument('-a', '--connections-alpha', type=float, default=.5)
     parser.add_argument('-c', '--connections-color', default='#ffffff')
     parser.add_argument('-w', '--connections-width', type=float, default=1)
+    parser.add_argument('-n', '--plugin-name', default=None)
+
+    subparsers = parser.add_subparsers(help='help for subcommand',
+                                       dest='command')
+
+    parser_fixed = subparsers.add_parser('fixed', help='Start view with fixed'
+                                         'name and hub URI.')
+    parser_fixed.add_argument('hub_uri')
+
+    parser_config = subparsers.add_parser('configurable', help='Start view '
+                                          'with configurable name and hub '
+                                          'URI.')
+    parser_config.add_argument('hub_uri', nargs='?')
 
     args = parser.parse_args()
     return args
@@ -50,8 +66,33 @@ def main():
                              connections_alpha=args.connections_alpha,
                              padding_fraction=args.padding_fraction)
     canvas.connections_attrs['line_width'] = args.connections_width
-    view = DmfDeviceView(canvas)
+
+    if args.command == 'fixed':
+        view = DmfDeviceFixedHubView(canvas, hub_uri=args.hub_uri,
+                                     plugin_name=args.plugin_name)
+    elif args.command == 'configurable':
+        view = DmfDeviceConfigurableHubView(canvas, hub_uri=args.hub_uri,
+                                            plugin_name=args.plugin_name)
+
     view.widget.connect('destroy', gtk.main_quit)
+
+    def init_window_titlebar(widget):
+        '''
+        Set window title and icon.
+        '''
+        view.widget.parent.set_title('DMF device user interface')
+        try:
+            (view.widget.parent
+            .set_icon_from_file(pkg_resources.resource_filename('microdrop',
+                                                                'microdrop.ico')))
+        except ImportError:
+            pass
+    view.widget.connect('realize', init_window_titlebar)
+    if args.command == 'fixed':
+        logging.info('Register connect_plugin')
+        view.canvas_slave.widget.connect('realize', lambda *args:
+                                         view.connect_plugin())
+
     view.show_and_run()
 
 

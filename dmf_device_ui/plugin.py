@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 import json
-import uuid
 import logging
 
 from pygtkhelpers.delegates import SlaveView
@@ -9,6 +8,8 @@ from zmq_plugin.plugin import Plugin
 from zmq_plugin.schema import decode_content_data
 import gtk
 import zmq
+
+from . import generate_plugin_name
 
 logger = logging.getLogger(__name__)
 
@@ -90,6 +91,12 @@ class DevicePlugin(Plugin):
 class PluginConnection(SlaveView):
     gsignal('plugin-connected', object)
 
+    def __init__(self, hub_uri='tcp://localhost:31000', plugin_name=None):
+        self._hub_uri = hub_uri
+        self._plugin_name = (generate_plugin_name()
+                             if plugin_name is None else plugin_name)
+        super(PluginConnection, self).__init__()
+
     def create_ui(self):
         super(PluginConnection, self).create_ui()
         self.widget.set_orientation(gtk.ORIENTATION_VERTICAL)
@@ -97,12 +104,11 @@ class PluginConnection(SlaveView):
 
         self.plugin_uri_label = gtk.Label('Plugin hub URI:')
         self.plugin_uri = gtk.Entry()
-        self.plugin_uri.set_text('tcp://localhost:31000')
+        self.plugin_uri.set_text(self._hub_uri)
         self.plugin_uri.set_width_chars(len(self.plugin_uri.get_text()))
         self.ui_plugin_name_label = gtk.Label('UI plugin name:')
         self.ui_plugin_name = gtk.Entry()
-        self.ui_plugin_name.set_text('plugin-' +
-                                     str(uuid.uuid4()).split('-')[0])
+        self.ui_plugin_name.set_text(self._plugin_name)
         self.ui_plugin_name.set_width_chars(len(self.ui_plugin_name
                                                 .get_text()))
         self.connect_button = gtk.Button('Connect')
