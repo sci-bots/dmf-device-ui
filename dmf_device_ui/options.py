@@ -1,20 +1,13 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
-import json
 import logging
 
-import gobject
 import gtk
-import zmq
 from pygtkhelpers.utils import gsignal
 from pygtkhelpers.delegates import SlaveView
-from zmq_plugin.plugin import Plugin
-from zmq_plugin.schema import decode_content_data
 
 logger = logging.getLogger(__name__)
 
-
-def gtk_wait(wait_duration_s): gtk.main_iteration_do()
 
 class DebugView(SlaveView):
     def create_ui(self):
@@ -133,123 +126,3 @@ class DeviceViewOptions(SlaveView):
         self.labels_button.set_property('active', active)
 
 
-class DeviceLoader(SlaveView):
-    gsignal('device-loaded', object)
-    gsignal('electrode-states-updated', object)
-    gsignal('electrode-states-set', object)
-    gsignal('routes-set', object)
-
-    def create_ui(self):
-        super(DeviceLoader, self).create_ui()
-        self.widget.set_orientation(gtk.ORIENTATION_VERTICAL)
-        self.top_row = gtk.HBox()
-        self.bottom_row = gtk.HBox()
-
-        self.plugin_uri_label = gtk.Label('Plugin hub URI:')
-        self.plugin_uri = gtk.Entry()
-        self.plugin_uri.set_text('tcp://localhost:31000')
-        self.plugin_uri.set_width_chars(len(self.plugin_uri.get_text()))
-        self.ui_plugin_name_label = gtk.Label('UI plugin name:')
-        self.ui_plugin_name = gtk.Entry()
-        self.ui_plugin_name.set_text('dmf-device-ui')
-        self.ui_plugin_name.set_width_chars(len(self.ui_plugin_name
-                                                .get_text()))
-        self.device_plugin_name_label = gtk.Label('Device plugin name:')
-        self.device_plugin_name = gtk.Entry()
-        self.device_plugin_name.set_text('wheelerlab.device_info_plugin')
-        self.device_plugin_name.set_width_chars(len(self.device_plugin_name
-                                                    .get_text()))
-        self.load_device_button = gtk.Button('Load device')
-
-        top_widgets = [self.plugin_uri_label, self.plugin_uri,
-                       self.ui_plugin_name_label, self.ui_plugin_name]
-        bottom_widgets = [self.device_plugin_name_label,
-                          self.device_plugin_name, self.load_device_button]
-        for w in top_widgets:
-            self.top_row.pack_start(w, False, False, 5)
-        for w in bottom_widgets:
-            self.bottom_row.pack_start(w, False, False, 5)
-        for w in (self.top_row, self.bottom_row):
-            self.widget.pack_start(w, False, False, 5)
-        self.plugin = None
-        self.socket_timeout_id = None
-
-    def on_load_device_button__clicked(self, event):
-        hub_uri = self.plugin_uri.get_text()
-        ui_plugin_name = self.ui_plugin_name.get_text()
-
-        # Cancel periodic plugin callback (if started).
-        self.cleanup()
-        self.plugin = Plugin(ui_plugin_name, hub_uri,
-                             subscribe_options={zmq.SUBSCRIBE: ''})
-        # Initialize sockets.
-        self.plugin.reset()
-
-        # Block until device is retrieved from device info plugin.
-        device = self.plugin.execute('wheelerlab.device_info_plugin',
-                                     'get_device', wait_func=gtk_wait)
-        # Periodically process outstanding plugin socket messages.
-        self.socket_timeout_id = gobject.timeout_add(10, self.check_sockets)
-        self.emit('device-loaded', device)
-
-    def request_refresh(self):
-        # Request electrode/channel states.
-        self.plugin.execute_async('wheelerlab.electrode_controller_plugin',
-                                  'get_channel_states')
-        # Request routes.
-        self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
-                                  'get_routes')
-
-    def cleanup(self):
-        if self.socket_timeout_id is not None:
-            gobject.source_remove(self.socket_timeout_id)
-        if self.plugin is not None:
-            self.plugin = None
-
-    def check_sockets(self):
-        try:
-            msg_frames = (self.plugin.command_socket
-                          .recv_multipart(zmq.NOBLOCK))
-        except zmq.Again:
-            pass
-        else:
-            self.plugin.on_command_recv(msg_frames)
-        try:
-            msg_frames = (self.plugin.subscribe_socket
-                          .recv_multipart(zmq.NOBLOCK))
-            source, target, msg_type, msg_json = msg_frames
-            if ((source == 'wheelerlab.electrode_controller_plugin') and
-                (msg_type == 'execute_reply')):
-                msg = json.loads(msg_json)
-                if msg['content']['command'] in ('set_electrode_state',
-                                                 'set_electrode_states'):
-                    data = decode_content_data(msg)
-                    if data is None:
-                        print msg
-                    else:
-                        self.emit('electrode-states-updated', data)
-                elif msg['content']['command'] == 'get_channel_states':
-                    data = decode_content_data(msg)
-                    if data is None:
-                        print msg
-                    else:
-                        self.emit('electrode-states-set', data)
-            elif ((source == 'wheelerlab.droplet_planning_plugin') and
-                  (msg_type == 'execute_reply')):
-                msg = json.loads(msg_json)
-                if msg['content']['command'] in ('add_route', ):
-                    self.plugin.execute_async('wheelerlab'
-                                              '.droplet_planning_plugin',
-                                              'get_routes')
-                elif msg['content']['command'] in ('get_routes', ):
-                    data = decode_content_data(msg)
-                    self.emit('routes-set', data)
-            else:
-                self.most_recent = msg_json
-        except zmq.Again:
-            pass
-        except:
-            logger.error('Error processing message from subscription '
-                         'socket.', exc_info=True)
-
-        return True

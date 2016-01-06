@@ -1,16 +1,27 @@
 # -*- coding: utf-8 -*-
+from datetime import datetime
+import logging
+
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
+import gobject
 import gtk
 import pandas as pd
 
-from .options import (DeviceViewOptions, DeviceViewInfo, DebugView,
-                      DeviceLoader)
+from .options import DeviceViewOptions, DeviceViewInfo, DebugView
+from .plugin import DevicePluginConnection
+from . import gtk_wait
+
+logger = logging.getLogger(__name__)
 
 
 class DmfDeviceView(SlaveView):
     def __init__(self, device_canvas):
         self.device_canvas = device_canvas
+        self.plugin = None
+        self.socket_timeout_id = None
+        self.heartbeat_timeout_id = None
+        self.heartbeat_alive_timestamp = None
         super(DmfDeviceView, self).__init__()
 
     def create_ui(self):
@@ -18,7 +29,8 @@ class DmfDeviceView(SlaveView):
         self.widget.set_orientation(gtk.ORIENTATION_VERTICAL)
         self.info_slave = self.add_slave(DeviceViewInfo(), 'widget')
         self.options_slave = self.add_slave(DeviceViewOptions(), 'widget')
-        self.loader_slave = self.add_slave(DeviceLoader(), 'widget')
+        self.plugin_slave = self.add_slave(DevicePluginConnection(self),
+                                           'widget')
         self.debug_slave = self.add_slave(DebugView(), 'widget')
         self.canvas_slave = self.add_slave(self.device_canvas, 'widget')
 
@@ -46,7 +58,6 @@ class DmfDeviceView(SlaveView):
         gtk.idle_add(self.canvas_slave.draw)
 
     def on_options_slave__connections_alpha_changed(self, slave, alpha):
-        print '[connections_alpha_changed] %s' % alpha
         self.canvas_slave.connections_alpha = alpha
         self.canvas_slave.render()
         gtk.idle_add(self.canvas_slave.draw)
@@ -58,14 +69,14 @@ class DmfDeviceView(SlaveView):
         self.info_slave.electrode_id = ''
 
     def on_canvas_slave__electrode_selected(self, slave, data):
-        if self.loader_slave.plugin is not None:
+        if self.plugin is not None:
             state = (self.canvas_slave.electrode_states
                      .get(data['electrode_id'], 0))
-            (self.loader_slave.plugin
-             .execute('wheelerlab.electrode_controller_plugin',
-                      'set_electrode_states',
-                      electrode_states=
-                      pd.Series([not state], index=[data['electrode_id']])))
+            (self.plugin.execute('wheelerlab.electrode_controller_plugin',
+                                 'set_electrode_states',
+                                 electrode_states=
+                                 pd.Series([not state],
+                                           index=[data['electrode_id']])))
 
     def on_canvas_slave__electrode_pair_selected(self, slave, data):
         '''
@@ -83,23 +94,94 @@ class DmfDeviceView(SlaveView):
         source_id = data['source_id']
         target_id = data['target_id']
 
-        if self.canvas_slave.device is None or (self.loader_slave.plugin is
-                                                None):
+        if self.canvas_slave.device is None or self.plugin is None:
             return
         try:
             shortest_path = self.canvas_slave.device.find_path(source_id,
                                                                target_id)
-            plugin = self.loader_slave.plugin
-            plugin.execute_async('wheelerlab.droplet_planning_plugin',
-                                 'add_route', drop_route=shortest_path)
+            self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+                                      'add_route', drop_route=shortest_path)
         except nx.NetworkXNoPath:
-            print 'no path found'
+            logger.error('No path found between %s and %s.', source_id,
+                         target_id)
 
-    def on_loader_slave__device_loaded(self, slave, device):
+    def on_widget__realize(self, *args):
+        self.register_shortcuts()
+
+    def register_shortcuts(self):
+        def control_protocol(command):
+            if self.plugin is not None:
+                self.plugin.execute_async('microdrop.gui.protocol_controller',
+                                          command)
+
+        # Tie shortcuts to protocol controller commands (next, previous, etc.)
+        shortcuts = {'<Control>r': lambda *args:
+                     control_protocol('run_protocol'),
+                     'A': lambda *args: control_protocol('first_step'),
+                     'S': lambda *args: control_protocol('prev_step'),
+                     'D': lambda *args: control_protocol('next_step'),
+                     'F': lambda *args: control_protocol('last_step')}
+        register_shortcuts(self.widget.parent, shortcuts)
+
+    def cleanup(self):
+        if self.socket_timeout_id is not None:
+            gobject.source_remove(self.socket_timeout_id)
+        if self.plugin is not None:
+            self.plugin = None
+        self.plugin_slave.reset()
+
+    ###########################################################################
+    # ZeroMQ plugin callbacks
+    ###########################################################################
+    def ping_hub(self):
+        '''
+        Attempt to ping the ZeroMQ plugin hub to verify connection is alive.
+
+        If ping is successful, record timestamp.
+        If ping is unsuccessful, call `on_heartbeat_error` method.
+        '''
+        if self.plugin is not None:
+            try:
+                result = self.plugin.execute(self.plugin.hub_name, 'ping',
+                                             timeout_s=1, wait_func=gtk_wait)
+            except IOError:
+                self.on_heartbeat_error()
+            else:
+                self.heartbeat_alive_timestamp = datetime.now()
+                logger.debug('Hub connection alive as of %s',
+                             self.heartbeat_alive_timestamp)
+                return True
+
+    def on_heartbeat_error(self):
+        logger.error('Timed out waiting for heartbeat ping.')
+        self.cleanup()
+
+    def on_plugin_slave__plugin_connected(self, slave, plugin):
+        self.plugin = plugin
+
+        try:
+            # Block until device is retrieved from device info plugin.
+            device = self.plugin.execute('wheelerlab.device_info_plugin',
+                                         'get_device', wait_func=gtk_wait,
+                                         timeout_s=15)
+        except IOError:
+            logger.error('Timed out waiting for device info.')
+            self.cleanup()
+        else:
+            # Periodically process outstanding plugin socket messages.
+            self.socket_timeout_id = gobject.timeout_add(10,
+                                                        self.plugin
+                                                         .check_sockets)
+            # Periodically ping hub to verify connection is alive.
+            self.heartbeat_timeout_id = gobject.timeout_add(2000,
+                                                            self.ping_hub)
+            self.on_device_loaded(device)
+
+    def on_device_loaded(self, device):
         self.canvas_slave.set_device(device)
-        self.loader_slave.request_refresh()
+        self.plugin.request_refresh()
 
-    def on_loader_slave__electrode_states_updated(self, slave, states):
+    def on_electrode_states_updated(self, states):
         updated_electrode_states = \
             states['electrode_states'].combine_first(self.canvas_slave
                                                      .electrode_states)
@@ -109,33 +191,15 @@ class DmfDeviceView(SlaveView):
             self.canvas_slave.render()
             gtk.idle_add(self.canvas_slave.draw)
 
-    def on_loader_slave__electrode_states_set(self, slave, states):
+    def on_electrode_states_set(self, states):
         if not (self.canvas_slave.electrode_states
                 .equals(states['electrode_states'])):
             self.canvas_slave.electrode_states = states['electrode_states']
             self.canvas_slave.render()
             gtk.idle_add(self.canvas_slave.draw)
 
-    def on_loader_slave__routes_set(self, slave, df_routes):
+    def on_routes_set(self, df_routes):
         if not self.canvas_slave.df_routes.equals(df_routes):
             self.canvas_slave.df_routes = df_routes
             self.canvas_slave.render()
             gtk.idle_add(self.canvas_slave.draw)
-
-    def on_widget__realize(self, *args):
-        self.register_shortcuts()
-
-    def register_shortcuts(self):
-        def control_protocol(command):
-            if self.loader_slave.plugin is not None:
-                self.loader_slave.plugin.execute_async(
-                    'microdrop.gui.protocol_controller',
-                    command)
-
-        # Tie shortcuts to protocol controller commands (next, previous, etc.)
-        shortcuts = {'space': lambda *args: control_protocol('run_protocol'),
-                     'A': lambda *args: control_protocol('first_step'),
-                     'S': lambda *args: control_protocol('prev_step'),
-                     'D': lambda *args: control_protocol('next_step'),
-                     'F': lambda *args: control_protocol('last_step')}
-        register_shortcuts(self.widget.parent, shortcuts)

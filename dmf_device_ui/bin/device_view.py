@@ -16,6 +16,7 @@
 #
 # # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 import gtk
+import logging
 
 from ..view import DmfDeviceView
 from ..canvas import DmfDeviceCanvas
@@ -45,6 +46,8 @@ def parse_args(args=None):
 
 
 if __name__ == '__main__':
+    logging.basicConfig(level=logging.INFO)
+
     args = parse_args()
     notifier = DmfDeviceNotifier()
     notifier.bind(args.address, args.port)
