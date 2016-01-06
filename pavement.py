@@ -19,7 +19,7 @@ setup(name='dmf-device-ui',
       license='LGPLv2.1',
       packages=['dmf_device_ui'],
       install_requires=['microdrop-utility>=0.4', 'networkx>=1.10', 'pandas',
-                        'path-helpers>=0.2', 'svg_model>=0.5.post10',
+                        'path-helpers>=0.2', 'svg_model>=0.5.post14',
                         'wheeler.pygtkhelpers>=0.11.post4',
                         'zmq-plugin>=0.1.post7'],
       # Install data listed in `MANIFEST.in`
