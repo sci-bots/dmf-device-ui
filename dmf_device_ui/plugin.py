@@ -34,7 +34,14 @@ class DevicePlugin(Plugin):
             msg_frames = (self.subscribe_socket
                           .recv_multipart(zmq.NOBLOCK))
             source, target, msg_type, msg_json = msg_frames
-            if ((source == 'wheelerlab.electrode_controller_plugin') and
+
+            if ((source == 'wheelerlab.device_info_plugin') and
+                (msg_type == 'execute_reply')):
+                msg = json.loads(msg_json)
+                if msg['content']['command'] == 'get_device':
+                    data = decode_content_data(msg)
+                    self.parent.on_device_loaded(data)
+            elif ((source == 'wheelerlab.electrode_controller_plugin') and
                 (msg_type == 'execute_reply')):
                 msg = json.loads(msg_json)
                 if msg['content']['command'] in ('set_electrode_state',

@@ -159,23 +159,14 @@ class DmfDeviceView(SlaveView):
     def on_plugin_slave__plugin_connected(self, slave, plugin):
         self.plugin = plugin
 
-        try:
-            # Block until device is retrieved from device info plugin.
-            device = self.plugin.execute('wheelerlab.device_info_plugin',
-                                         'get_device', wait_func=gtk_wait,
-                                         timeout_s=15)
-        except IOError:
-            logger.error('Timed out waiting for device info.')
-            self.cleanup()
-        else:
-            # Periodically process outstanding plugin socket messages.
-            self.socket_timeout_id = gobject.timeout_add(10,
-                                                        self.plugin
-                                                         .check_sockets)
-            # Periodically ping hub to verify connection is alive.
-            self.heartbeat_timeout_id = gobject.timeout_add(2000,
-                                                            self.ping_hub)
-            self.on_device_loaded(device)
+        # Block until device is retrieved from device info plugin.
+        device = self.plugin.execute_async('wheelerlab.device_info_plugin',
+                                           'get_device')
+        # Periodically process outstanding plugin socket messages.
+        self.socket_timeout_id = gobject.timeout_add(10,
+                                                     self.plugin.check_sockets)
+        # Periodically ping hub to verify connection is alive.
+        self.heartbeat_timeout_id = gobject.timeout_add(2000, self.ping_hub)
 
     def on_device_loaded(self, device):
         self.canvas_slave.set_device(device)
