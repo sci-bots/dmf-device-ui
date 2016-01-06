@@ -64,24 +64,6 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
                                               **kwargs)
 
-    def reset_states(self):
-        self.electrode_states = pd.Series(name='electrode_states')
-        self.electrode_states.index.name = 'electrode_id'
-
-    def reset_routes(self):
-        self.df_routes = pd.DataFrame(None, columns=['route_i', 'electrode_i',
-                                                     'transition_i'])
-
-    def set_device(self, dmf_device):
-        self.device = dmf_device
-        self.df_shapes = self.device.df_shapes
-        self.reset_routes()
-        self.reset_states()
-        x, y, width, height = self.widget.get_allocation()
-        if width > 0 and height > 0:
-            gtk.idle_add(self.on_canvas_reset_tick, width, height)
-        self.emit('device-set', dmf_device)
-
     def reset_canvas(self, width, height):
         from svg_model import compute_shape_centers
 
@@ -107,6 +89,26 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                    .reset_index(drop=True), lsuffix='_source',
                    rsuffix='_target'))
 
+    def reset_states(self):
+        self.electrode_states = pd.Series(name='electrode_states')
+        self.electrode_states.index.name = 'electrode_id'
+
+    def reset_routes(self):
+        self.df_routes = pd.DataFrame(None, columns=['route_i', 'electrode_i',
+                                                     'transition_i'])
+
+    def set_device(self, dmf_device):
+        self.device = dmf_device
+        self.df_shapes = self.device.df_shapes
+        self.reset_routes()
+        self.reset_states()
+        x, y, width, height = self.widget.get_allocation()
+        if width > 0 and height > 0:
+            gtk.idle_add(self.on_canvas_reset_tick, width, height)
+        self.emit('device-set', dmf_device)
+
+    ###########################################################################
+    # Properties
     @property
     def connection_count(self):
         return self.device.df_shape_connections.shape[0] if self.device else 0
@@ -115,6 +117,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def shape_count(self):
         return self.df_shapes[self.shape_i_column].unique().shape[0]
 
+    ###########################################################################
+    # Render methods
     def render_background(self, cairo_context=None):
         if cairo_context is None:
             cairo_context = self.widget.window.cairo_create()
@@ -124,22 +128,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         cairo_context.set_source_rgb(0, 0, 0)
         cairo_context.fill()
 
-    def render(self):
-        self.reset_cairo_surface()
-        cairo_context = cairo.Context(self.cairo_surface)
-        self.render_background(cairo_context=cairo_context)
-        self.render_shapes(cairo_context=cairo_context)
-        if (hasattr(self.canvas, 'df_connection_centers') and
-            self.connections_enabled and self.connections_alpha > 0):
-
-            self.render_default_connections(cairo_context=cairo_context)
-        self.render_routes(cairo_context=cairo_context)
-
     def render_default_connections(self, cairo_context=None):
         self.render_connections(hex_color=self.connections_color,
-                              alpha=self.connections_alpha,
-                              cairo_context=cairo_context,
-                              **self.connections_attrs)
+                                alpha=self.connections_alpha,
+                                cairo_context=cairo_context,
+                                **self.connections_attrs)
 
     def render_connections(self, indexes=None, hex_color='#fff', alpha=1.,
                            cairo_context=None, **kwargs):
@@ -199,6 +192,19 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         for route_i, df_route in self.df_routes.groupby('route_i'):
             self.draw_drop_route(df_route, cairo_context, line_width=.25)
 
+    def render(self):
+        self.reset_cairo_surface()
+        cairo_context = cairo.Context(self.cairo_surface)
+        self.render_background(cairo_context=cairo_context)
+        self.render_shapes(cairo_context=cairo_context)
+        if (hasattr(self.canvas, 'df_connection_centers') and
+            self.connections_enabled and self.connections_alpha > 0):
+
+            self.render_default_connections(cairo_context=cairo_context)
+        self.render_routes(cairo_context=cairo_context)
+
+    ###########################################################################
+    # Drawing helper methods
     def draw_drop_route(self, df_route, cr, color=None, line_width=None):
         '''
         Draw a line between electrodes listed in a droplet route.
@@ -254,9 +260,25 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         # Restore cairo context after drawing route.
         cr.restore()
 
+    def get_endpoint_marker(self, df_route_centers):
+        df_shapes = self.canvas.df_canvas_shapes
+        df_endpoint_electrode = df_shapes.loc[df_shapes.id ==
+                                              df_route_centers.index[-1]]
+        df_endpoint_bbox = (df_endpoint_electrode[['x_center_offset',
+                                                   'y_center_offset']]
+                            .describe().loc[['min', 'max']])
+        return pd.DataFrame([[df_endpoint_bbox.x_center_offset['min'],
+                              df_endpoint_bbox.y_center_offset['min']],
+                             [df_endpoint_bbox.x_center_offset['min'],
+                              df_endpoint_bbox.y_center_offset['max']],
+                             [df_endpoint_bbox.x_center_offset['max'],
+                              df_endpoint_bbox.y_center_offset['max']],
+                             [df_endpoint_bbox.x_center_offset['max'],
+                              df_endpoint_bbox.y_center_offset['min']]],
+                            columns=['x_center_offset', 'y_center_offset'])
+
     ###########################################################################
     # ## Mouse event handling ##
-
     def on_widget__button_press_event(self, widget, event):
         '''
         Called when any mouse button is pressed.
@@ -311,19 +333,3 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 self.emit('electrode-mouseover', {'electrode_id':
                                                   self.last_hovered})
 
-    def get_endpoint_marker(self, df_route_centers):
-        df_shapes = self.canvas.df_canvas_shapes
-        df_endpoint_electrode = df_shapes.loc[df_shapes.id ==
-                                              df_route_centers.index[-1]]
-        df_endpoint_bbox = (df_endpoint_electrode[['x_center_offset',
-                                                   'y_center_offset']]
-                            .describe().loc[['min', 'max']])
-        return pd.DataFrame([[df_endpoint_bbox.x_center_offset['min'],
-                              df_endpoint_bbox.y_center_offset['min']],
-                             [df_endpoint_bbox.x_center_offset['min'],
-                              df_endpoint_bbox.y_center_offset['max']],
-                             [df_endpoint_bbox.x_center_offset['max'],
-                              df_endpoint_bbox.y_center_offset['max']],
-                             [df_endpoint_bbox.x_center_offset['max'],
-                              df_endpoint_bbox.y_center_offset['min']]],
-                            columns=['x_center_offset', 'y_center_offset'])
