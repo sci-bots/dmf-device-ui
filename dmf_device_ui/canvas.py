@@ -23,14 +23,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
      - Moving mouse cursor over electrode emits electrode mouse over signal.
      - Moving mouse cursor out of electrode emits electrode mouse out signal.
 
-    Signals are published via a *notifier* member, which *MUST* implement the
-    following API:
-
-     - `notify(<python object>)`
-
-    The format of each signal is:
-
-        {'signal': '<signal label>', 'data': {...}}
+    Signals are emitted as gobject signals.  See `emit` calls for payload
+    formats.
     '''
     gsignal('device-set', object)
     gsignal('electrode-selected', object)
@@ -38,14 +32,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('electrode-mouseover', object)
     gsignal('electrode-mouseout', object)
 
-    def __init__(self, notifier, connections_alpha=1., connections_color=1.,
-                 **kwargs):
+    def __init__(self, connections_alpha=1., connections_color=1., **kwargs):
         # Read SVG polygons into dataframe, one row per polygon vertex.
         df_shapes = pd.DataFrame(None, columns=['id', 'vertex_i', 'x', 'y'])
         self.device = None
         self.shape_i_column = 'id'
-
-        self.notifier = notifier
 
         # Save alpha for drawing connections.
         self.connections_alpha = connections_alpha
@@ -299,13 +290,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         if event.button == 1:
             if self.last_pressed == shape:
-                self.notifier.notify({'signal': 'electrode_selected',
-                                      'data': {'electrode_id': shape}})
                 self.emit('electrode-selected', {'electrode_id': shape})
             else:
-                self.notifier.notify({'signal': 'electrode_pair_selected',
-                                      'data': {'source_id': self.last_pressed,
-                                               'target_id': shape}})
                 self.emit('electrode-pair-selected',
                           {'source_id': self.last_pressed, 'target_id': shape})
             self.last_pressed = None
@@ -318,18 +304,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         if shape != self.last_hovered:
             if self.last_hovered is not None:
                 # Leaving shape
-                self.notifier.notify({'signal': 'electrode_mouseout',
-                                      'data': {'electrode_id':
-                                               self.last_hovered}})
                 self.emit('electrode-mouseout', {'electrode_id':
                                                  self.last_hovered})
                 self.last_hovered = None
             elif shape is not None:
                 # Entering shape
                 self.last_hovered = shape
-                self.notifier.notify({'signal': 'electrode_mouseover',
-                                      'data': {'electrode_id':
-                                               self.last_hovered}})
                 self.emit('electrode-mouseover', {'electrode_id':
                                                   self.last_hovered})
-

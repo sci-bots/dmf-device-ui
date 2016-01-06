@@ -20,7 +20,6 @@ import logging
 
 from ..view import DmfDeviceView
 from ..canvas import DmfDeviceCanvas
-from ..notifier import DmfDeviceNotifier
 
 
 def parse_args(args=None):
@@ -38,24 +37,23 @@ def parse_args(args=None):
     parser.add_argument('-a', '--connections-alpha', type=float, default=.5)
     parser.add_argument('-c', '--connections-color', default='#ffffff')
     parser.add_argument('-w', '--connections-width', type=float, default=1)
-    parser.add_argument('--address', type=str, default='tcp://*')
-    parser.add_argument('--port', type=int, default=5000)
 
     args = parser.parse_args()
     return args
 
 
-if __name__ == '__main__':
+def main():
     logging.basicConfig(level=logging.INFO)
 
     args = parse_args()
-    notifier = DmfDeviceNotifier()
-    notifier.bind(args.address, args.port)
-    canvas = DmfDeviceCanvas(notifier,
-                             connections_color=args.connections_color,
+    canvas = DmfDeviceCanvas(connections_color=args.connections_color,
                              connections_alpha=args.connections_alpha,
                              padding_fraction=args.padding_fraction)
     canvas.connections_attrs['line_width'] = args.connections_width
     view = DmfDeviceView(canvas)
     view.widget.connect('destroy', gtk.main_quit)
     view.show_and_run()
+
+
+if __name__ == '__main__':
+    main()
