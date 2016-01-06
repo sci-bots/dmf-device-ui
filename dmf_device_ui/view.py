@@ -179,6 +179,8 @@ class DmfDeviceView(SlaveView):
 
     def on_device_loaded(self, device):
         self.canvas_slave.set_device(device)
+        self.info_slave.connection_count = self.canvas_slave.connection_count
+        self.info_slave.electrode_count = self.canvas_slave.shape_count
         self.plugin.request_refresh()
 
     def on_electrode_states_updated(self, states):
