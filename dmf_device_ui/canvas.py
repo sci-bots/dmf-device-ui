@@ -31,6 +31,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('electrode-pair-selected', object)
     gsignal('electrode-mouseover', object)
     gsignal('electrode-mouseout', object)
+    gsignal('key-press', object)
+    gsignal('key-release', object)
 
     def __init__(self, connections_alpha=1., connections_color=1., **kwargs):
         # Read SVG polygons into dataframe, one row per polygon vertex.
@@ -54,6 +56,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
                                               **kwargs)
+
+    def create_ui(self):
+        super(DmfDeviceCanvas, self).create_ui()
+        self.widget.set_flags(gtk.CAN_FOCUS)
+        self.widget.add_events(gtk.gdk.KEY_PRESS_MASK |
+                               gtk.gdk.KEY_RELEASE_MASK)
 
     def reset_canvas(self, width, height):
         from svg_model import compute_shape_centers
@@ -303,6 +311,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when mouse pointer is moved within drawing area.
         '''
         shape = self.canvas.find_shape(event.x, event.y)
+
+        # Grab focus to [enable notification on key press/release events][1].
+        #
+        # [1]: http://mailman.daa.com.au/cgi-bin/pipermail/pygtk/2003-August/005770.html
+        self.widget.grab_focus()
+
         if shape != self.last_hovered:
             if self.last_hovered is not None:
                 # Leaving shape
@@ -321,3 +335,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when key is pressed when widget has focus.
         '''
         self.emit('key-press', {'event': event.copy()})
+
+    def on_widget__key_release_event(self, widget, event):
+        '''
+        Called when key is released when widget has focus.
+        '''
+        self.emit('key-release', {'event': event.copy()})
