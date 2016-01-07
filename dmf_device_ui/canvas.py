@@ -290,10 +290,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         if event.button == 1:
             if self.last_pressed == shape:
-                self.emit('electrode-selected', {'electrode_id': shape})
+                self.emit('electrode-selected', {'electrode_id': shape,
+                                                 'event': event.copy()})
             else:
                 self.emit('electrode-pair-selected',
-                          {'source_id': self.last_pressed, 'target_id': shape})
+                          {'source_id': self.last_pressed, 'target_id': shape,
+                           'event': event.copy()})
             self.last_pressed = None
 
     def on_widget__motion_notify_event(self, widget, event):
@@ -305,10 +307,17 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             if self.last_hovered is not None:
                 # Leaving shape
                 self.emit('electrode-mouseout', {'electrode_id':
-                                                 self.last_hovered})
+                                                 self.last_hovered,
+                                                 'event': event.copy()})
                 self.last_hovered = None
             elif shape is not None:
                 # Entering shape
                 self.last_hovered = shape
                 self.emit('electrode-mouseover', {'electrode_id':
-                                                  self.last_hovered})
+                                                  self.last_hovered,
+                                                  'event': event.copy()})
+    def on_widget__key_press_event(self, widget, event):
+        '''
+        Called when key is pressed when widget has focus.
+        '''
+        self.emit('key-press', {'event': event.copy()})
