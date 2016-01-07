@@ -225,7 +225,7 @@ class DmfDeviceConfigurableHubView(DmfDeviceViewBase):
 
     def cleanup(self):
         self.plugin_slave.reset()
-        super(DmfDeviceConnectionView, self).cleanup()
+        super(DmfDeviceConfigurableHubView, self).cleanup()
 
     def create_slaves(self):
         self.plugin_slave =\
