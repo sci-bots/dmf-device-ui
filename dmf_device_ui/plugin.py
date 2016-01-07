@@ -41,7 +41,8 @@ class DevicePlugin(Plugin):
                 msg = json.loads(msg_json)
                 if msg['content']['command'] == 'get_device':
                     data = decode_content_data(msg)
-                    self.parent.on_device_loaded(data)
+                    if data is not None:
+                        self.parent.on_device_loaded(data)
             elif ((source == 'wheelerlab.electrode_controller_plugin') and
                 (msg_type == 'execute_reply')):
                 msg = json.loads(msg_json)
@@ -86,6 +87,13 @@ class DevicePlugin(Plugin):
                            'get_channel_states')
         # Request routes.
         self.execute_async('wheelerlab.droplet_planning_plugin', 'get_routes')
+
+    def on_execute__get_allocation(self, request):
+        return self.parent.get_allocation()
+
+    def on_execute__set_allocation(self, request):
+        data = decode_content_data(request)
+        self.parent.set_allocation(data['allocation'])
 
 
 class PluginConnection(SlaveView):

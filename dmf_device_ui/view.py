@@ -18,15 +18,28 @@ logger = logging.getLogger(__name__)
 
 class DmfDeviceViewBase(SlaveView):
     def __init__(self, device_canvas, hub_uri='tcp://localhost:31000',
-                 plugin_name=None):
+                 plugin_name=None, allocation=None):
         self.device_canvas = device_canvas
-        self._hub_uri = 'tcp://localhost:31000'
-        self._plugin_name = generate_plugin_name()
+        self._hub_uri = hub_uri
+        self._plugin_name = plugin_name or generate_plugin_name()
+        self._allocation = allocation
         self.plugin = None
         self.socket_timeout_id = None
         self.heartbeat_timeout_id = None
         self.heartbeat_alive_timestamp = None
         super(DmfDeviceViewBase, self).__init__()
+
+    def get_allocation(self):
+        width, height = self.widget.parent.get_size()
+        x, y = self.widget.parent.get_position()
+        return {'x': x, 'y': y, 'width': width, 'height': height}
+
+    def set_allocation(self, allocation):
+        if allocation.get('width') is not None and (allocation.get('height') is
+                                                    not None):
+            self.widget.parent.resize(allocation['width'], allocation['height'])
+        if allocation.get('x') is not None and allocation.get('y') is not None:
+            self.widget.parent.move(allocation['x'], allocation['y'])
 
     def create_slaves(self):
         self.info_slave = self.add_slave(DeviceViewInfo(), 'widget')
@@ -52,6 +65,11 @@ class DmfDeviceViewBase(SlaveView):
                 continue
             self.widget.set_child_packing(slave.widget, False, False, 0,
                                           gtk.PACK_START)
+
+        def configure_window(*args):
+            if self._allocation is not None:
+                self.set_allocation(self._allocation)
+        self.canvas_slave.widget.connect('map-event', configure_window)
 
     def on_options_slave__labels_toggled(self, slave, active):
         self.canvas_slave.render()
@@ -146,8 +164,8 @@ class DmfDeviceViewBase(SlaveView):
         '''
         if self.plugin is not None:
             try:
-                result = self.plugin.execute(self.plugin.hub_name, 'ping',
-                                             timeout_s=1, wait_func=gtk_wait)
+                self.plugin.execute(self.plugin.hub_name, 'ping', timeout_s=1,
+                                    wait_func=gtk_wait)
             except IOError:
                 self.on_heartbeat_error()
             else:
@@ -164,8 +182,8 @@ class DmfDeviceViewBase(SlaveView):
         self.plugin = plugin
 
         # Block until device is retrieved from device info plugin.
-        device = self.plugin.execute_async('wheelerlab.device_info_plugin',
-                                           'get_device')
+        self.plugin.execute_async('wheelerlab.device_info_plugin',
+                                  'get_device')
         # Periodically process outstanding plugin socket messages.
         self.socket_timeout_id = gobject.timeout_add(10,
                                                      self.plugin.check_sockets)

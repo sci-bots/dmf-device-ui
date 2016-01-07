@@ -15,6 +15,7 @@
 # [2]: http://cairographics.org/FAQ/#paint_from_a_surface
 #
 # # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
+import json
 import pkg_resources
 
 import gtk
@@ -22,7 +23,6 @@ import logging
 
 from ..canvas import DmfDeviceCanvas
 from ..view import DmfDeviceFixedHubView, DmfDeviceConfigurableHubView
-from .. import generate_plugin_name
 
 
 def parse_args(args=None):
@@ -37,10 +37,13 @@ def parse_args(args=None):
                             'dataframe, scaled to fit to GTK canvas while '
                             'preserving aspect ratio (a.k.a., aspect fit).')
     parser.add_argument('-p', '--padding-fraction', type=float, default=0)
-    parser.add_argument('-a', '--connections-alpha', type=float, default=.5)
-    parser.add_argument('-c', '--connections-color', default='#ffffff')
-    parser.add_argument('-w', '--connections-width', type=float, default=1)
+    parser.add_argument('--connections-color', default='#ffffff')
+    parser.add_argument('--connections-alpha', type=float, default=.5)
+    parser.add_argument('--connections-width', type=float, default=1)
     parser.add_argument('-n', '--plugin-name', default=None)
+    parser.add_argument('-a', '--allocation', default=None,
+                        help='Window allocation: x, y, width, height (JSON'
+                        'object)')
 
     subparsers = parser.add_subparsers(help='help for subcommand',
                                        dest='command')
@@ -62,17 +65,21 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     args = parse_args()
+    allocation = None if args.allocation is None else json.loads(args.allocation)
     canvas = DmfDeviceCanvas(connections_color=args.connections_color,
                              connections_alpha=args.connections_alpha,
-                             padding_fraction=args.padding_fraction)
+                             padding_fraction=args.padding_fraction,
+                             width=480, height=240)
     canvas.connections_attrs['line_width'] = args.connections_width
 
     if args.command == 'fixed':
         view = DmfDeviceFixedHubView(canvas, hub_uri=args.hub_uri,
-                                     plugin_name=args.plugin_name)
+                                     plugin_name=args.plugin_name,
+                                     allocation=allocation)
     elif args.command == 'configurable':
         view = DmfDeviceConfigurableHubView(canvas, hub_uri=args.hub_uri,
-                                            plugin_name=args.plugin_name)
+                                            plugin_name=args.plugin_name,
+                                            allocation=allocation)
 
     view.widget.connect('destroy', gtk.main_quit)
 
@@ -90,7 +97,7 @@ def main():
     view.widget.connect('realize', init_window_titlebar)
     if args.command == 'fixed':
         logging.info('Register connect_plugin')
-        view.canvas_slave.widget.connect('realize', lambda *args:
+        view.canvas_slave.widget.connect('map_event', lambda *args:
                                          view.connect_plugin())
 
     view.show_and_run()
