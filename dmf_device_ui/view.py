@@ -4,6 +4,7 @@ import logging
 
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
+from pygtkhelpers.utils import gsignal
 import gobject
 import gtk
 import pandas as pd
@@ -16,7 +17,36 @@ from . import gtk_wait, generate_plugin_name
 logger = logging.getLogger(__name__)
 
 
+class Route(object):
+    def __init__(self, device):
+        self.device = device
+        self.electrode_ids = []
+
+    def __str__(self):
+        return '<Route electrode_ids=%s>' % self.electrode_ids
+
+    def append(self, electrode_id):
+        do_append = False
+
+        if not self.electrode_ids:
+            do_append = True
+        else:
+            source = self.electrode_ids[-1]
+            target = electrode_id
+            source_id, target_id = self.device.shape_indexes[[source, target]]
+            if self.device.adjacency_matrix[source_id, target_id]:
+                # Electrodes are connected, so append target to current route.
+                do_append = True
+
+        if do_append:
+            self.electrode_ids.append(electrode_id)
+        return do_append
+
+
 class DmfDeviceViewBase(SlaveView):
+    gsignal('route-selected', object)
+    gsignal('route-electrode-added', object)
+
     def __init__(self, device_canvas, hub_uri='tcp://localhost:31000',
                  plugin_name=None, allocation=None):
         self.device_canvas = device_canvas
@@ -27,6 +57,7 @@ class DmfDeviceViewBase(SlaveView):
         self.socket_timeout_id = None
         self.heartbeat_timeout_id = None
         self.heartbeat_alive_timestamp = None
+        self.route = None
         super(DmfDeviceViewBase, self).__init__()
 
     def get_allocation(self):
@@ -70,7 +101,36 @@ class DmfDeviceViewBase(SlaveView):
             if self._allocation is not None:
                 self.set_allocation(self._allocation)
         self.canvas_slave.widget.connect('map-event', configure_window)
+        self.connect('route-selected', self.on_route_selected)
+        self.connect('route-electrode-added', self.on_route_electrode_added)
 
+    def on_widget__realize(self, *args):
+        self.register_shortcuts()
+
+    def register_shortcuts(self):
+        def control_protocol(command):
+            if self.plugin is not None:
+                self.plugin.execute_async('microdrop.gui.protocol_controller',
+                                          command)
+
+        # Tie shortcuts to protocol controller commands (next, previous, etc.)
+        shortcuts = {'<Control>r': lambda *args:
+                     control_protocol('run_protocol'),
+                     'A': lambda *args: control_protocol('first_step'),
+                     'S': lambda *args: control_protocol('prev_step'),
+                     'D': lambda *args: control_protocol('next_step'),
+                     'F': lambda *args: control_protocol('last_step')}
+        register_shortcuts(self.widget.parent, shortcuts)
+
+    def cleanup(self):
+        if self.socket_timeout_id is not None:
+            gobject.source_remove(self.socket_timeout_id)
+        if self.plugin is not None:
+            self.plugin = None
+
+    ###########################################################################
+    # Options UI element callbacks
+    ###########################################################################
     def on_options_slave__labels_toggled(self, slave, active):
         self.canvas_slave.render()
         gtk.idle_add(self.canvas_slave.draw)
@@ -85,14 +145,30 @@ class DmfDeviceViewBase(SlaveView):
         self.canvas_slave.render()
         gtk.idle_add(self.canvas_slave.draw)
 
+    ###########################################################################
+    # Device canvas event callbacks
+    ###########################################################################
     def on_canvas_slave__electrode_mouseover(self, slave, data):
         self.info_slave.electrode_id = data['electrode_id']
+        if data['event'].get_state() == gtk.gdk.MOD1_MASK:
+            # `<Alt>` key was held down.
+            if self.route is not None:
+                if self.route.append(data['electrode_id']):
+                    self.emit('route-electrode-added', data['electrode_id'])
 
     def on_canvas_slave__electrode_mouseout(self, slave, data):
         self.info_slave.electrode_id = ''
 
     def on_canvas_slave__electrode_selected(self, slave, data):
-        if self.plugin is not None:
+        event = data['event']
+        if (gtk.gdk.MOD1_MASK | gtk.gdk.BUTTON1_MASK) == event.get_state():
+            # `<Alt>` key is held down.
+            if self.route is None:
+                # Start a new route.
+                self.route = Route(self.canvas_slave.device)
+                if self.route.append(data['electrode_id']):
+                    self.emit('route-electrode-added', data['electrode_id'])
+        elif self.plugin is not None:
             state = (self.canvas_slave.electrode_states
                      .get(data['electrode_id'], 0))
             (self.plugin.execute('wheelerlab.electrode_controller_plugin',
@@ -128,29 +204,26 @@ class DmfDeviceViewBase(SlaveView):
             logger.error('No path found between %s and %s.', source_id,
                          target_id)
 
-    def on_widget__realize(self, *args):
-        self.register_shortcuts()
+    def on_route_selected(self, slave, route):
+        print 'Route selected:', route
+        self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+                                  'add_route', drop_route=route.electrode_ids)
 
-    def register_shortcuts(self):
-        def control_protocol(command):
-            if self.plugin is not None:
-                self.plugin.execute_async('microdrop.gui.protocol_controller',
-                                          command)
+    def on_route_electrode_added(self, slave, electrode_id):
+        print 'Route electrode added:', electrode_id
 
-        # Tie shortcuts to protocol controller commands (next, previous, etc.)
-        shortcuts = {'<Control>r': lambda *args:
-                     control_protocol('run_protocol'),
-                     'A': lambda *args: control_protocol('first_step'),
-                     'S': lambda *args: control_protocol('prev_step'),
-                     'D': lambda *args: control_protocol('next_step'),
-                     'F': lambda *args: control_protocol('last_step')}
-        register_shortcuts(self.widget.parent, shortcuts)
-
-    def cleanup(self):
-        if self.socket_timeout_id is not None:
-            gobject.source_remove(self.socket_timeout_id)
-        if self.plugin is not None:
-            self.plugin = None
+    def on_canvas_slave__key_release(self, slave, data):
+        event = data['event']
+        if self.route is not None:
+            if event.keyval in [gtk.gdk.keyval_from_name(k)
+                                for k in ('Alt_%s' % i for i in 'LR')]:
+                # <Alt> key was released.
+                if not (event.get_state() & gtk.gdk.MOD1_MASK):
+                    # <Alt> key is not pressed now.
+                    route = self.route
+                    self.emit('route-selected', route)
+        # Clear route.
+        self.route = None
 
     ###########################################################################
     # ZeroMQ plugin callbacks
