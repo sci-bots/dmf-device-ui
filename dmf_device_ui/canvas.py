@@ -63,6 +63,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('route-selected', object)
     gsignal('route-electrode-added', object)
     gsignal('clear-routes', object)
+    gsignal('clear-electrode-states')
 
     def __init__(self, connections_alpha=1., connections_color=1., **kwargs):
         # Read SVG polygons into dataframe, one row per polygon vertex.
@@ -346,6 +347,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             self.last_pressed = None
         elif event.button == 3:
             # Right-click pop-up menu.
+            def clear_electrode_states(widget):
+                self.emit('clear-electrode-states')
+
             def clear_routes(widget):
                 self.emit('clear-routes', shape)
 
@@ -353,12 +357,16 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 self.emit('clear-routes', None)
 
             menu = gtk.Menu()
+            menu_clear_electrode_states = gtk.MenuItem('Clear electrode states')
+            menu_clear_electrode_states.connect('activate',
+                                                clear_electrode_states)
             menu_clear_routes = gtk.MenuItem('Clear electrode routes')
             menu_clear_routes.connect('activate', clear_routes)
             menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
             menu_clear_all_routes.connect('activate', clear_all_routes)
 
-            for item in (menu_clear_routes, menu_clear_all_routes):
+            for item in (menu_clear_electrode_states, menu_clear_routes,
+                         menu_clear_all_routes):
                 menu.append(item)
                 item.show()
 

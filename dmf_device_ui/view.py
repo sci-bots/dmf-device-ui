@@ -176,6 +176,15 @@ class DmfDeviceViewBase(SlaveView):
                                   'clear_routes', electrode_id=electrode_id,
                                   callback=refresh_routes)
 
+    def on_canvas_slave__clear_electrode_states(self, slave):
+        if self.plugin is not None:
+            (self.plugin.execute('wheelerlab.electrode_controller_plugin',
+                                 'set_electrode_states',
+                                 electrode_states=
+                                 pd.Series(0, dtype=int,
+                                           index=self.canvas_slave.device
+                                           .electrodes)))
+
     ###########################################################################
     # ZeroMQ plugin callbacks
     ###########################################################################
