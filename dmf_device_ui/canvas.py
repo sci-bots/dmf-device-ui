@@ -33,6 +33,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('electrode-mouseout', object)
     gsignal('key-press', object)
     gsignal('key-release', object)
+    gsignal('clear-routes', object)
 
     def __init__(self, connections_alpha=1., connections_color=1., **kwargs):
         # Read SVG polygons into dataframe, one row per polygon vertex.
@@ -305,6 +306,26 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                           {'source_id': self.last_pressed, 'target_id': shape,
                            'event': event.copy()})
             self.last_pressed = None
+        elif event.button == 3:
+            # Right-click pop-up menu.
+            def clear_routes(widget):
+                self.emit('clear-routes', shape)
+
+            def clear_all_routes(widget):
+                self.emit('clear-routes', None)
+
+            menu = gtk.Menu()
+            menu_clear_routes = gtk.MenuItem('Clear electrode routes')
+            menu_clear_routes.connect('activate', clear_routes)
+            menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
+            menu_clear_all_routes.connect('activate', clear_all_routes)
+
+            for item in (menu_clear_routes, menu_clear_all_routes):
+                menu.append(item)
+                item.show()
+
+            # Make menu popup
+            menu.popup(None, None, None, event.button, event.time)
 
     def on_widget__motion_notify_event(self, widget, event):
         '''

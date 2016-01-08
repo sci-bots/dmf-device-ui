@@ -225,6 +225,15 @@ class DmfDeviceViewBase(SlaveView):
         # Clear route.
         self.route = None
 
+    def on_canvas_slave__clear_routes(self, slave, electrode_id):
+        def refresh_routes(reply):
+            # Request routes.
+            self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+                                      'get_routes')
+        self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+                                  'clear_routes', electrode_id=electrode_id,
+                                  callback=refresh_routes)
+
     ###########################################################################
     # ZeroMQ plugin callbacks
     ###########################################################################
@@ -291,7 +300,6 @@ class DmfDeviceViewBase(SlaveView):
             self.canvas_slave.df_routes = df_routes
             self.canvas_slave.render()
             gtk.idle_add(self.canvas_slave.draw)
-
 
 
 class DmfDeviceFixedHubView(DmfDeviceViewBase):
