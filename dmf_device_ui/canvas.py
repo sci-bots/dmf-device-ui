@@ -10,6 +10,33 @@ import numpy as np
 import pandas as pd
 
 
+class Route(object):
+    def __init__(self, device):
+        self.device = device
+        self.electrode_ids = []
+
+    def __str__(self):
+        return '<Route electrode_ids=%s>' % self.electrode_ids
+
+    def append(self, electrode_id):
+        do_append = False
+
+        if not self.electrode_ids:
+            do_append = True
+        else:
+            source = self.electrode_ids[-1]
+            target = electrode_id
+            source_id, target_id = self.device.shape_indexes[[source, target]]
+            if self.device.adjacency_matrix[source_id, target_id]:
+                # Electrodes are connected, so append target to current route.
+                do_append = True
+
+        if do_append:
+            self.electrode_ids.append(electrode_id)
+        return do_append
+
+
+
 class DmfDeviceCanvas(GtkShapesCanvasView):
     '''
     Draw device layout from SVG file.
@@ -33,6 +60,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('electrode-mouseout', object)
     gsignal('key-press', object)
     gsignal('key-release', object)
+    gsignal('route-selected', object)
+    gsignal('route-electrode-added', object)
     gsignal('clear-routes', object)
 
     def __init__(self, connections_alpha=1., connections_color=1., **kwargs):
@@ -53,6 +82,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.connections_attrs = {}
         self.last_pressed = None
         self.last_hovered = None
+        self._route = None
         self.connections_enabled = (self.connections_alpha > 0)
 
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
@@ -299,9 +329,17 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         if event.button == 1:
             if self.last_pressed == shape:
-                self.emit('electrode-selected', {'electrode_id': shape,
-                                                 'event': event.copy()})
-            else:
+                if (gtk.gdk.MOD1_MASK | gtk.gdk.BUTTON1_MASK) == event.get_state():
+                    # `<Alt>` key is held down.
+                    if self._route is None:
+                        # Start a new route.
+                        self._route = Route(self.device)
+                        if self._route.append(shape):
+                            self.emit('route-electrode-added', shape)
+                else:
+                    self.emit('electrode-selected', {'electrode_id': shape,
+                                                    'event': event.copy()})
+            elif gtk.gdk.BUTTON1_MASK == event.get_state():
                 self.emit('electrode-pair-selected',
                           {'source_id': self.last_pressed, 'target_id': shape,
                            'event': event.copy()})
@@ -348,6 +386,13 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             elif shape is not None:
                 # Entering shape
                 self.last_hovered = shape
+
+                if event.get_state() == gtk.gdk.MOD1_MASK:
+                    # `<Alt>` key was held down.
+                    if self._route is not None:
+                        if self._route.append(shape):
+                            self.emit('route-electrode-added', shape)
+
                 self.emit('electrode-mouseover', {'electrode_id':
                                                   self.last_hovered,
                                                   'event': event.copy()})
@@ -362,3 +407,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when key is released when widget has focus.
         '''
         self.emit('key-release', {'event': event.copy()})
+        if self._route is not None:
+            if event.keyval in [gtk.gdk.keyval_from_name(k)
+                                for k in ('Alt_%s' % i for i in 'LR')]:
+                # <Alt> key was released.
+                if not (event.get_state() & gtk.gdk.MOD1_MASK):
+                    # <Alt> key is not pressed now.
+                    route = self._route
+                    self.emit('route-selected', route)
+        # Clear route.
+        self._route = None
+
