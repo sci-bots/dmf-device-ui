@@ -318,6 +318,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         if shape is None: return
         if event.button == 1:
+            # `<Alt>` key is held down.
+            # Start a new route.
+            self._route = Route(self.device)
+            self._route.append(shape)
+            self.emit('route-electrode-added', shape)
             self.last_pressed = shape
 
     def on_widget__button_release_event(self, widget, event):
@@ -329,18 +334,22 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         if shape is None: return
 
         if event.button == 1:
-            if self.last_pressed == shape:
-                if (gtk.gdk.MOD1_MASK | gtk.gdk.BUTTON1_MASK) == event.get_state():
-                    # `<Alt>` key is held down.
-                    if self._route is None:
-                        # Start a new route.
-                        self._route = Route(self.device)
-                        if self._route.append(shape):
-                            self.emit('route-electrode-added', shape)
-                else:
+            if gtk.gdk.BUTTON1_MASK == event.get_state():
+                if self._route.append(shape):
+                    self.emit('route-electrode-added', shape)
+                if len(self._route.electrode_ids) == 1:
+                    # Single electrode, so select electrode.
                     self.emit('electrode-selected', {'electrode_id': shape,
-                                                    'event': event.copy()})
-            elif gtk.gdk.BUTTON1_MASK == event.get_state():
+                                                     'event': event.copy()})
+                else:
+                    # Multiple electrodes, so select route.
+                    route = self._route
+                    self.emit('route-selected', route)
+                    # Clear route.
+                    self._route = None
+            elif (event.get_state() == (gtk.gdk.MOD1_MASK |
+                                        gtk.gdk.BUTTON1_MASK) and
+                  self.last_pressed != shape):
                 self.emit('electrode-pair-selected',
                           {'source_id': self.last_pressed, 'target_id': shape,
                            'event': event.copy()})
@@ -357,7 +366,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 self.emit('clear-routes', None)
 
             menu = gtk.Menu()
-            menu_clear_electrode_states = gtk.MenuItem('Clear electrode states')
+            menu_separator = gtk.SeparatorMenuItem()
+            menu_clear_electrode_states = gtk.MenuItem('Clear all electrode states')
             menu_clear_electrode_states.connect('activate',
                                                 clear_electrode_states)
             menu_clear_routes = gtk.MenuItem('Clear electrode routes')
@@ -365,8 +375,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
             menu_clear_all_routes.connect('activate', clear_all_routes)
 
-            for item in (menu_clear_electrode_states, menu_clear_routes,
-                         menu_clear_all_routes):
+            for item in (menu_clear_electrode_states, menu_separator,
+                         menu_clear_routes, menu_clear_all_routes):
                 menu.append(item)
                 item.show()
 
@@ -395,11 +405,10 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 # Entering shape
                 self.last_hovered = shape
 
-                if event.get_state() == gtk.gdk.MOD1_MASK:
-                    # `<Alt>` key was held down.
-                    if self._route is not None:
-                        if self._route.append(shape):
-                            self.emit('route-electrode-added', shape)
+                # `<Alt>` key was held down.
+                if self._route is not None:
+                    if self._route.append(shape):
+                        self.emit('route-electrode-added', shape)
 
                 self.emit('electrode-mouseover', {'electrode_id':
                                                   self.last_hovered,
@@ -415,14 +424,3 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when key is released when widget has focus.
         '''
         self.emit('key-release', {'event': event.copy()})
-        if self._route is not None:
-            if event.keyval in [gtk.gdk.keyval_from_name(k)
-                                for k in ('Alt_%s' % i for i in 'LR')]:
-                # <Alt> key was released.
-                if not (event.get_state() & gtk.gdk.MOD1_MASK):
-                    # <Alt> key is not pressed now.
-                    route = self._route
-                    self.emit('route-selected', route)
-        # Clear route.
-        self._route = None
-
