@@ -1,10 +1,10 @@
 # -*- coding: utf-8 -*-
-import gtk
+from pygtkhelpers.utils import refresh_gui
 import uuid
 
 
 def gtk_wait(wait_duration_s):
-    gtk.main_iteration_do()
+    refresh_gui()
 
 
 def generate_plugin_name(prefix='plugin-'):
