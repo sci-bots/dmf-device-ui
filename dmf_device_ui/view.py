@@ -1,9 +1,11 @@
 # -*- coding: utf-8 -*-
+from collections import OrderedDict
 from datetime import datetime
 import logging
 
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
+from pygtkhelpers.ui.views import composite_surface
 import gobject
 import gtk
 import pandas as pd
@@ -104,13 +106,18 @@ class DmfDeviceViewBase(SlaveView):
         gtk.idle_add(self.canvas_slave.draw)
 
     def on_options_slave__connections_toggled(self, slave, active):
-        self.canvas_slave.connections_enabled = active
-        self.canvas_slave.render()
+        surfaces = self.canvas_slave.surfaces
+        if not active:
+            surfaces = OrderedDict([(k, v) for k, v in surfaces.iteritems()
+                                    if k != 'connections'])
+        self.canvas_slave.cairo_surface = composite_surface(surfaces.values())
         gtk.idle_add(self.canvas_slave.draw)
 
     def on_options_slave__connections_alpha_changed(self, slave, alpha):
         self.canvas_slave.connections_alpha = alpha
-        self.canvas_slave.render()
+        self.canvas_slave.surfaces['connections'] = \
+            self.canvas_slave.render_default_connections()
+        self.canvas_slave.cairo_surface = self.canvas_slave.flatten_surfaces()
         gtk.idle_add(self.canvas_slave.draw)
 
     ###########################################################################
@@ -236,20 +243,29 @@ class DmfDeviceViewBase(SlaveView):
         if not (self.canvas_slave.electrode_states
                 .equals(updated_electrode_states)):
             self.canvas_slave.electrode_states = updated_electrode_states
-            self.canvas_slave.render()
+            self.canvas_slave.surfaces['shapes'] = (self.canvas_slave
+                                                    .render_shapes())
+            self.canvas_slave.cairo_surface = (self.canvas_slave
+                                               .flatten_surfaces())
             gtk.idle_add(self.canvas_slave.draw)
 
     def on_electrode_states_set(self, states):
         if not (self.canvas_slave.electrode_states
                 .equals(states['electrode_states'])):
             self.canvas_slave.electrode_states = states['electrode_states']
-            self.canvas_slave.render()
+            self.canvas_slave.surfaces['shapes'] = (self.canvas_slave
+                                                    .render_shapes())
+            self.canvas_slave.cairo_surface = (self.canvas_slave
+                                               .flatten_surfaces())
             gtk.idle_add(self.canvas_slave.draw)
 
     def on_routes_set(self, df_routes):
         if not self.canvas_slave.df_routes.equals(df_routes):
             self.canvas_slave.df_routes = df_routes
-            self.canvas_slave.render()
+            self.canvas_slave.surfaces['routes'] = (self.canvas_slave
+                                                    .render_routes())
+            self.canvas_slave.cairo_surface = (self.canvas_slave
+                                               .flatten_surfaces())
             gtk.idle_add(self.canvas_slave.draw)
 
 

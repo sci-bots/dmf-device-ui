@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from collections import OrderedDict
 import itertools
 
 from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
@@ -150,26 +151,20 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     ###########################################################################
     # Render methods
-    def render_background(self, cairo_context=None):
-        if cairo_context is None:
-            cairo_context = self.widget.window.cairo_create()
-
+    def render_background(self):
         x, y, width, height = self.widget.get_allocation()
-        cairo_context.rectangle(0, 0, width, height)
-        cairo_context.set_source_rgb(0, 0, 0)
-        cairo_context.fill()
-
-    def render_default_connections(self, cairo_context=None):
-        self.render_connections(hex_color=self.connections_color,
-                                alpha=self.connections_alpha,
-                                cairo_context=cairo_context,
-                                **self.connections_attrs)
+        surface = cairo.ImageSurface(cairo.FORMAT_RGB24, width, height)
+        context = cairo.Context(surface)
+        context.rectangle(0, 0, width, height)
+        context.set_source_rgb(0, 0, 0)
+        context.fill()
+        return surface
 
     def render_connections(self, indexes=None, hex_color='#fff', alpha=1.,
-                           cairo_context=None, **kwargs):
-        if cairo_context is None:
-            cairo_context = self.widget.window.cairo_create()
-
+                           **kwargs):
+        x, y, width, height = self.widget.get_allocation()
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        cairo_context = cairo.Context(surface)
         coords_columns = ['source', 'target',
                           'x_center_source', 'y_center_source',
                           'x_center_target', 'y_center_target']
@@ -189,11 +184,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 getattr(cairo_context, 'set_' + k)(v)
             cairo_context.line_to(x2, y2)
             cairo_context.stroke()
+        return surface
 
-    def render_shapes(self, df_shapes=None, cairo_context=None, clip=False):
-        if cairo_context is None:
-            cairo_context = self.widget.window.cairo_create()
-
+    def render_shapes(self, df_shapes=None, clip=False):
+        x, y, width, height = self.widget.get_allocation()
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        cairo_context = cairo.Context(surface)
         if df_shapes is None:
             df_shapes = self.canvas.df_canvas_shapes
 
@@ -215,24 +211,31 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 color = 0, 0, 1
             cairo_context.set_source_rgb(*color)
             cairo_context.fill()
+        return surface
 
-    def render_routes(self, cairo_context=None):
-        if cairo_context is None:
-            cairo_context = self.widget.window.cairo_create()
+    def render_routes(self):
+        x, y, width, height = self.widget.get_allocation()
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        cairo_context = cairo.Context(surface)
 
         for route_i, df_route in self.df_routes.groupby('route_i'):
             self.draw_drop_route(df_route, cairo_context, line_width=.25)
+        return surface
 
     def render(self):
-        self.reset_cairo_surface()
-        cairo_context = cairo.Context(self.cairo_surface)
-        self.render_background(cairo_context=cairo_context)
-        self.render_shapes(cairo_context=cairo_context)
+        self.surfaces = OrderedDict()
+        self.surfaces['background'] = self.render_background()
+        self.surfaces['shapes'] = self.render_shapes()
         if (hasattr(self.canvas, 'df_connection_centers') and
-            self.connections_enabled and self.connections_alpha > 0):
+                self.connections_alpha > 0):
+            self.surfaces['connections'] = self.render_default_connections()
+        self.surfaces['routes'] = self.render_routes()
+        self.cairo_surface = self.flatten_surfaces()
 
-            self.render_default_connections(cairo_context=cairo_context)
-        self.render_routes(cairo_context=cairo_context)
+    def render_default_connections(self):
+        return self.render_connections(hex_color=self.connections_color,
+                                       alpha=self.connections_alpha,
+                                       **self.connections_attrs)
 
     ###########################################################################
     # Drawing helper methods
@@ -424,3 +427,4 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when key is released when widget has focus.
         '''
         self.emit('key-release', {'event': event.copy()})
+
