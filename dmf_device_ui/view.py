@@ -3,6 +3,7 @@ from collections import OrderedDict
 from datetime import datetime
 from subprocess import Popen
 import logging
+import platform
 import sys
 
 from microdrop_utility.gui import register_shortcuts
@@ -333,11 +334,18 @@ class DmfDeviceViewBase(SlaveView):
             self.canvas_slave.disable()
             self.cleanup_video()
             return
+
         caps_str = ('video/x-raw-rgb,width={width:d},height={height:d},'
                     'format=RGB,'
                     'framerate={framerate_num:d}/{framerate_denom:d}'
                     .format(**video_config))
+        if platform.system() == 'Windows':
+            device_str = 'dshowvideosrc device-name="%s"' % video_config.device
+        elif platform.system() == 'Linux':
+            device_str = 'v4l2src device="%s"' % video_config.device
+        logging.info('[View] video config device string: %s', device_str)
         logging.info('[View] video config caps string: %s', caps_str)
+
         py_exe = sys.executable
         port = self.canvas_slave.video_sink.socket_info['port']
         transport = self.canvas_slave.video_sink.socket_info['transport']
@@ -347,8 +355,8 @@ class DmfDeviceViewBase(SlaveView):
         self.cleanup_video()
         command = [py_exe, '-m', 'pygst_utils.video_view.video_source', '-p',
                    str(port), transport, host,
-                   'autovideosrc ! ffmpegcolorspace ! ' + caps_str +
-                   ' ! videorate ! appsink name=app-video emit-signals=true']
+                   device_str + ' ! ffmpegcolorspace ! ' + caps_str +
+                   ' ! appsink name=app-video emit-signals=true']
         logger.info(' '.join(command))
         self.video_source_process = Popen(command)
         self.video_source_process.daemon = False
