@@ -41,7 +41,7 @@ class DeviceViewInfo(SlaveView):
                                    ('electrode_tag', gtk.Label()),
                                    ('electrode_id', gtk.Label())])
 
-        self.labels['electrode_tag'].set_markup('<b>Electrode id: </b>')
+        self.labels['electrode_tag'].set_markup('<b>ID: </b>')
 
         for i, (k, label) in enumerate(self.labels.iteritems()):
             self.widget.pack_start(label, False, False,
@@ -52,9 +52,9 @@ class DeviceViewInfo(SlaveView):
         if name == 'electrode_id':
             self.labels[name].set_markup(value)
         elif name == 'electrode_count':
-            self.labels[name].set_markup('<b>Electrode count:</b> %s' % value)
+            self.labels[name].set_markup('<b>Electrodes:</b> %s' % value)
         elif name == 'connection_count':
-            self.labels[name].set_markup('<b>Connection count:</b> %s' % value)
+            self.labels[name].set_markup('<b>Connections:</b> %s' % value)
         else:
             super(DeviceViewInfo, self).__setattr__(name, value)
 
@@ -81,7 +81,7 @@ class DeviceViewOptions(SlaveView):
 
         self.connections_alpha_scale = \
             gtk.HScale(self.connections_alpha_adjustment)
-        self.connections_alpha_scale.set_size_request(200, 40)
+        self.connections_alpha_scale.set_size_request(100, 40)
         self.connections_alpha_scale.set_update_policy(gtk.UPDATE_DELAYED)
         self.connections_alpha_scale.set_digits(0)
         self.connections_alpha_scale.set_value_pos(gtk.POS_TOP)
