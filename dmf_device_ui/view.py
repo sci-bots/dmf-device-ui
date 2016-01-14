@@ -359,7 +359,6 @@ class DmfDeviceViewBase(SlaveView):
                    ' ! appsink name=app-video emit-signals=true']
         logger.info(' '.join(command))
         self.video_source_process = Popen(command)
-        self.video_source_process.daemon = False
         self.canvas_slave.enable()
 
     def on_frame_rate_update(self, slave, frame_rate, dropped_rate):

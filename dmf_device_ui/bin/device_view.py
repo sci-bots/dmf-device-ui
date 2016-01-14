@@ -1,22 +1,7 @@
 # -*- coding: utf-8 -*-
-# # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
-#
-# Use a separate Cairo surface for each layer of the device view (e.g.,
-# electrodes, connections).
-#
-# Cairo surfaces can be composited over one another by using
-# `set_source_surface`, which will, by default, blend according to the alpha
-# channel of the source and the existing surface content.  Other blending modes
-# can be used by selecting the appropriate operator.
-#
-# See [here][1] and [here][2] for more information.
-#
-# [1]: http://cairographics.org/operators/
-# [2]: http://cairographics.org/FAQ/#paint_from_a_surface
-#
-# # TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO TODO
 import json
 import pkg_resources
+import sys
 
 import gtk
 import logging
@@ -27,7 +12,6 @@ from ..view import DmfDeviceFixedHubView, DmfDeviceConfigurableHubView
 
 def parse_args(args=None):
     '''Parses arguments, returns (options, args).'''
-    import sys
     from argparse import ArgumentParser
 
     if args is None:
