@@ -206,12 +206,12 @@ class DmfDeviceViewBase(SlaveView):
                          target_id)
 
     def on_canvas_slave__route_selected(self, slave, route):
-        print 'Route selected:', route
+        logger.debug('Route selected: %s', route)
         self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
                                   'add_route', drop_route=route.electrode_ids)
 
     def on_canvas_slave__route_electrode_added(self, slave, electrode_id):
-        print 'Route electrode added:', electrode_id
+        logger.debug('Route electrode added: %s', electrode_id)
 
     def on_canvas_slave__clear_routes(self, slave, electrode_id):
         def refresh_routes(reply):
