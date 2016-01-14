@@ -81,7 +81,7 @@ def main():
     view.widget.connect('realize', init_window_titlebar)
     if args.command == 'fixed':
         logging.info('Register connect_plugin')
-        view.canvas_slave.widget.connect('map_event', lambda *args:
+        view.canvas_slave.widget.connect('map-event', lambda *args:
                                          view.connect_plugin())
 
     view.show_and_run()

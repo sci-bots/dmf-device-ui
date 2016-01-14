@@ -101,7 +101,10 @@ class DmfDeviceViewBase(SlaveView):
         def configure_window(*args):
             if self._allocation is not None:
                 self.set_allocation(self._allocation)
-        self.canvas_slave.widget.connect('map-event', configure_window)
+                logger.info('[map-event] set allocation %s', self._allocation)
+                self.canvas_slave.widget.disconnect(self.map_event_id)
+        self.map_event_id = self.canvas_slave.widget.connect('map-event',
+                                                             configure_window)
 
     def on_widget__realize(self, *args):
         self.register_shortcuts()
