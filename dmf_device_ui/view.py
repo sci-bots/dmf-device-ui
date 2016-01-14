@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 from datetime import datetime
+from subprocess import Popen
 import logging
+import sys
 
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
-from pygtkhelpers.ui.views import composite_surface
+from pygtkhelpers.ui.views import composite_surface, find_closest
+from pygst_utils.video_view.mode import VideoModeSelector
+from pygst_utils.video_view.video_sink import Transform, VideoInfo
+import cv2
 import gobject
 import gtk
+import numpy as np
 import pandas as pd
 import zmq
 
@@ -20,7 +26,15 @@ logger = logging.getLogger(__name__)
 
 class DmfDeviceViewBase(SlaveView):
     def __init__(self, device_canvas, hub_uri='tcp://localhost:31000',
-                 plugin_name=None, allocation=None):
+                 plugin_name=None, allocation=None, video_transport='tcp',
+                 video_host='*', video_port=None):
+        # Video sink socket info.
+        self.socket_info = {'transport': video_transport,
+                            'host': video_host,
+                            'port': video_port}
+        # Video source process (i.e., `Popen` instance).
+        self.video_source_process = None
+
         self.device_canvas = device_canvas
         self._hub_uri = hub_uri
         self._plugin_name = plugin_name or generate_plugin_name()
@@ -31,6 +45,12 @@ class DmfDeviceViewBase(SlaveView):
         self.heartbeat_alive_timestamp = None
         self.route = None
         super(DmfDeviceViewBase, self).__init__()
+
+    def __del__(self):
+        self.cleanup_video()
+
+    def on_widget__destroy(self, widget):
+        self.cleanup_video()
 
     def get_allocation(self):
         width, height = self.widget.parent.get_size()
@@ -45,10 +65,18 @@ class DmfDeviceViewBase(SlaveView):
             self.widget.parent.move(allocation['x'], allocation['y'])
 
     def create_slaves(self):
+        self.video_mode_slave = self.add_slave(VideoModeSelector(), 'widget')
+        self.video_info_slave = self.add_slave(VideoInfo(), 'widget')
+        self.transform_slave = self.add_slave(Transform(), 'widget')
+        self.transform_slave.widget.set_sensitive(False)
+
         self.info_slave = self.add_slave(DeviceViewInfo(), 'widget')
         self.options_slave = self.add_slave(DeviceViewOptions(), 'widget')
         self.debug_slave = self.add_slave(DebugView(), 'widget')
         self.canvas_slave = self.add_slave(self.device_canvas, 'widget')
+
+        self.canvas_slave.video_sink.connect('frame-rate-update',
+                                             self.on_frame_rate_update)
 
     def create_ui(self):
         super(DmfDeviceViewBase, self).create_ui()
@@ -97,6 +125,12 @@ class DmfDeviceViewBase(SlaveView):
             gobject.source_remove(self.socket_timeout_id)
         if self.plugin is not None:
             self.plugin = None
+        self.cleanup_video()
+
+    def cleanup_video(self):
+        if self.video_source_process is not None:
+            self.video_source_process.terminate()
+            logger.info('terminate video process')
 
     ###########################################################################
     # Options UI element callbacks
@@ -106,11 +140,10 @@ class DmfDeviceViewBase(SlaveView):
         gtk.idle_add(self.canvas_slave.draw)
 
     def on_options_slave__connections_toggled(self, slave, active):
-        surfaces = self.canvas_slave.surfaces
-        if not active:
-            surfaces = OrderedDict([(k, v) for k, v in surfaces.iteritems()
-                                    if k != 'connections'])
-        self.canvas_slave.cairo_surface = composite_surface(surfaces.values())
+        self.canvas_slave.connections_enabled = active
+        self.canvas_slave.surfaces['connections'] =\
+            self.canvas_slave.render_default_connections()
+        self.canvas_slave.cairo_surface = self.canvas_slave.flatten_surfaces()
         gtk.idle_add(self.canvas_slave.draw)
 
     def on_options_slave__connections_alpha_changed(self, slave, alpha):
@@ -267,6 +300,91 @@ class DmfDeviceViewBase(SlaveView):
             self.canvas_slave.cairo_surface = (self.canvas_slave
                                                .flatten_surfaces())
             gtk.idle_add(self.canvas_slave.draw)
+
+    ###########################################################################
+    # ## Slave signal handling ##
+    def on_transform_slave__transform_reset(self, slave):
+        logger.info('[View] reset transform')
+        self.canvas_slave.reset_canvas_corners()
+        self.canvas_slave.reset_frame_corners()
+        self.canvas_slave.update_transforms()
+
+    def on_transform_slave__transform_rotate_left(self, slave):
+        self.canvas_slave.df_canvas_corners[:] = np.roll(self.canvas_slave
+                                                         .df_canvas_corners
+                                                         .values, 1, axis=0)
+        self.canvas_slave.update_transforms()
+
+    def on_transform_slave__transform_rotate_right(self, slave):
+        self.canvas_slave.df_canvas_corners[:] = np.roll(self.canvas_slave
+                                                        .df_canvas_corners
+                                                         .values, -1, axis=0)
+        self.canvas_slave.update_transforms()
+
+    def on_transform_slave__transform_modify_toggled(self, slave, active):
+        if active:
+            self.canvas_slave.mode = 'register_video'
+        else:
+            self.canvas_slave.mode = 'control'
+
+    def on_video_mode_slave__video_config_selected(self, slave, video_config):
+        logger.info('video config selected\n%s', video_config)
+        if video_config is None:
+            self.canvas_slave.disable()
+            self.cleanup_video()
+            return
+        caps_str = ('video/x-raw-rgb,width={width:d},height={height:d},'
+                    'format=RGB,'
+                    'framerate={framerate_num:d}/{framerate_denom:d}'
+                    .format(**video_config))
+        logging.info('[View] video config caps string: %s', caps_str)
+        py_exe = sys.executable
+        port = self.canvas_slave.video_sink.socket_info['port']
+        transport = self.canvas_slave.video_sink.socket_info['transport']
+        host = (self.canvas_slave.video_sink.socket_info['host']
+                .replace('*', 'localhost'))
+        # Terminate existing process (if running).
+        self.cleanup_video()
+        command = [py_exe, '-m', 'pygst_utils.video_view.video_source', '-p',
+                   str(port), transport, host,
+                   'autovideosrc ! ffmpegcolorspace ! ' + caps_str +
+                   ' ! videorate ! appsink name=app-video emit-signals=true']
+        logger.info(' '.join(command))
+        self.video_source_process = Popen(command)
+        self.video_source_process.daemon = False
+        self.canvas_slave.enable()
+
+    def on_frame_rate_update(self, slave, frame_rate, dropped_rate):
+        self.video_info_slave.frames_per_second = frame_rate
+        self.video_info_slave.dropped_rate = dropped_rate
+
+    def on_canvas_slave__point_pair_selected(self, slave, data):
+        if not self.transform_slave.modify or not self.canvas_slave.enabled:
+            return
+        start_xy = [getattr(data['start_event'], k) for k in 'xy']
+        end_xy = [getattr(data['end_event'], k) for k in 'xy']
+        logger.debug('[View] point pair selected: %s, %s', start_xy, end_xy)
+
+        slave = self.canvas_slave
+        # Map GTK event x/y coordinates to the video frame coordinate space.
+        frame_point_i = \
+            cv2.perspectiveTransform(np.array([[start_xy]], dtype=float),
+                                     slave.canvas_to_frame_map).ravel()
+        # Find the closest corner point in the frame to the starting point.
+        frame_corner_i = find_closest(slave.df_frame_corners, frame_point_i)
+        # Find the closest corner point in the canvas to the end point.
+        canvas_corner_i = find_closest(slave.df_canvas_corners, end_xy)
+        # Replace the corresponding corner point coordinates with the
+        # respective new points.
+        slave.df_frame_corners.iloc[frame_corner_i.name] = frame_point_i
+        slave.df_canvas_corners.iloc[canvas_corner_i.name] = end_xy
+        slave.update_transforms()
+
+    def on_canvas_slave__video_disabled(self, slave):
+        self.transform_slave.widget.set_sensitive(False)
+
+    def on_canvas_slave__video_enabled(self, slave):
+        self.transform_slave.widget.set_sensitive(True)
 
 
 class DmfDeviceFixedHubView(DmfDeviceViewBase):
