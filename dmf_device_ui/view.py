@@ -142,6 +142,9 @@ class DmfDeviceViewBase(SlaveView):
             self.video_source_process.terminate()
             logger.info('terminate video process')
 
+    def terminate(self):
+        self.cleanup()
+        gtk.main_quit()
     ###########################################################################
     # Options UI element callbacks
     ###########################################################################

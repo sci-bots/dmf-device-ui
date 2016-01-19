@@ -95,6 +95,9 @@ class DevicePlugin(Plugin):
         data = decode_content_data(request)
         self.parent.set_allocation(data['allocation'])
 
+    def on_execute__terminate(self, request):
+        self.parent.terminate()
+
 
 class PluginConnection(SlaveView):
     gsignal('plugin-connected', object)
