@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from collections import OrderedDict
 from datetime import datetime
 from subprocess import Popen
 import logging
@@ -8,7 +7,7 @@ import sys
 
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
-from pygtkhelpers.ui.views import composite_surface, find_closest
+from pygtkhelpers.ui.views import find_closest
 from pygst_utils.video_view.mode import VideoModeSelector
 from pygst_utils.video_view.video_sink import Transform, VideoInfo
 import cv2
@@ -18,7 +17,7 @@ import numpy as np
 import pandas as pd
 import zmq
 
-from .options import DeviceViewOptions, DeviceViewInfo, DebugView
+from .options import DeviceViewOptions, DeviceViewInfo
 from .plugin import DevicePluginConnection, DevicePlugin
 from . import gtk_wait, generate_plugin_name
 
@@ -131,8 +130,9 @@ class DmfDeviceViewBase(SlaveView):
         register_shortcuts(self.widget.parent, shortcuts)
 
     def cleanup(self):
-        if self.socket_timeout_id is not None:
-            gobject.source_remove(self.socket_timeout_id)
+        for timeout_id in (self.socket_timeout_id, self.heartbeat_timeout_id):
+            if timeout_id is not None:
+                gobject.source_remove(timeout_id)
         if self.plugin is not None:
             self.plugin = None
         self.cleanup_video()
@@ -173,14 +173,14 @@ class DmfDeviceViewBase(SlaveView):
         self.info_slave.channels = ''
 
     def on_canvas_slave__electrode_selected(self, slave, data):
-        if self.plugin is not None:
-            state = (self.canvas_slave.electrode_states
-                     .get(data['electrode_id'], 0))
-            (self.plugin.execute('wheelerlab.electrode_controller_plugin',
-                                 'set_electrode_states',
-                                 electrode_states=
-                                 pd.Series([not state],
-                                           index=[data['electrode_id']])))
+        if self.plugin is None:
+            return
+        state = self.canvas_slave.electrode_states.get(data['electrode_id'], 0)
+        self.plugin.execute('wheelerlab.electrode_controller_plugin',
+                            'set_electrode_states',
+                            electrode_states=
+                            pd.Series([not state],
+                                      index=[data['electrode_id']]))
 
     def on_canvas_slave__electrode_pair_selected(self, slave, data):
         '''

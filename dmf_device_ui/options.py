@@ -42,6 +42,7 @@ class DeviceViewInfo(SlaveView):
                                    ('channels', gtk.Label())])
 
         self.electrode_id = ''
+        self.channels = ''
 
         for i, (k, label) in enumerate(self.labels.iteritems()):
             self.widget.pack_start(label, False, False, 10)
