@@ -1,13 +1,20 @@
 # -*- coding: utf-8 -*-
+from collections import OrderedDict
 import itertools
+import logging
 
 from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
-from pygtkhelpers.utils import gsignal
+from pygtkhelpers.ui.views import composite_surface
+from pygtkhelpers.utils import gsignal, refresh_gui
+from pygst_utils.video_view.video_sink import VideoSink
+from pygst_utils.video_view import np_to_cairo
 from svg_model.color import hex_color_to_rgba
 import cairo
 import gtk
 import numpy as np
 import pandas as pd
+
+logger = logging.getLogger(__name__)
 
 
 class Route(object):
@@ -53,19 +60,49 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     Signals are emitted as gobject signals.  See `emit` calls for payload
     formats.
     '''
+    gsignal('clear-electrode-states')
+    gsignal('clear-routes', object)
     gsignal('device-set', object)
-    gsignal('electrode-selected', object)
-    gsignal('electrode-pair-selected', object)
-    gsignal('electrode-mouseover', object)
     gsignal('electrode-mouseout', object)
+    gsignal('electrode-mouseover', object)
+    gsignal('electrode-pair-selected', object)
+    gsignal('electrode-selected', object)
     gsignal('key-press', object)
     gsignal('key-release', object)
-    gsignal('route-selected', object)
     gsignal('route-electrode-added', object)
-    gsignal('clear-routes', object)
-    gsignal('clear-electrode-states')
+    gsignal('route-selected', object)
 
-    def __init__(self, connections_alpha=1., connections_color=1., **kwargs):
+    # Video signals
+    gsignal('point-pair-selected', object)
+    gsignal('video-enabled')
+    gsignal('video-disabled')
+
+    def __init__(self, connections_alpha=1., connections_color=1.,
+                 transport='tcp', target_host='*', port=None, **kwargs):
+        # Video sink socket info.
+        self.socket_info = {'transport': transport,
+                            'host': target_host,
+                            'port': port}
+        # Identifier for video incoming socket check.
+        self.callback_id = None
+        self._enabled = False  # Video enable
+        self.start_event = None  # Video modify start click event
+        # Matched corner points between canvas and video frame.  Used to
+        # generate map between coordinate spaces.
+        self.df_canvas_corners = pd.DataFrame(None, columns=['x', 'y'],
+                                              dtype=float)
+        self.df_frame_corners = pd.DataFrame(None, columns=['x', 'y'],
+                                             dtype=float)
+        # Matrix map from frame coordinates to canvas coordinates.
+        self.frame_to_canvas_map = None
+        # Matrix map from canvas coordinates to frame coordinates.
+        self.canvas_to_frame_map = None
+        # Shape of canvas (i.e., drawing area widget).
+        self.shape = None
+        self.surfaces = OrderedDict()
+
+        self.mode = 'control'
+
         # Read SVG polygons into dataframe, one row per polygon vertex.
         df_shapes = pd.DataFrame(None, columns=['id', 'vertex_i', 'x', 'y'])
         self.device = None
@@ -89,8 +126,46 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
                                               **kwargs)
 
+    def reset_canvas_corners(self):
+        if self.shape is None:
+            return
+        width, height = self.shape
+        self.df_canvas_corners = pd.DataFrame([[0, 0], [width, 0],
+                                               [width, height], [0, height]],
+                                              columns=['x', 'y'], dtype=float)
+
+    def reset_frame_corners(self):
+        if self.video_sink.frame_shape is None:
+            return
+        width, height = self.video_sink.frame_shape
+        self.df_frame_corners = pd.DataFrame([[0, 0], [width, 0],
+                                              [width, height], [0, height]],
+                                              columns=['x', 'y'], dtype=float)
+
+    def update_transforms(self):
+        import cv2
+
+        if (self.df_canvas_corners.shape[0] <= 0 or
+            self.df_frame_corners.shape[0] <= 0):
+            return
+
+        self.canvas_to_frame_map = cv2.findHomography(self.df_canvas_corners
+                                                      .values,
+                                                      self.df_frame_corners
+                                                      .values)[0]
+        self.frame_to_canvas_map = cv2.findHomography(self.df_frame_corners
+                                                      .values,
+                                                      self.df_canvas_corners
+                                                      .values)[0]
+        self.video_sink.transform = self.frame_to_canvas_map
+
     def create_ui(self):
         super(DmfDeviceCanvas, self).create_ui()
+        self.video_sink = VideoSink(*[self.socket_info[k]
+                                      for k in ['transport', 'host', 'port']])
+        # Initialize video sink socket.
+        self.video_sink.reset()
+        # Required to have key-press and key-release events trigger.
         self.widget.set_flags(gtk.CAN_FOCUS)
         self.widget.add_events(gtk.gdk.KEY_PRESS_MASK |
                                gtk.gdk.KEY_RELEASE_MASK)
@@ -135,7 +210,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.reset_states()
         x, y, width, height = self.widget.get_allocation()
         if width > 0 and height > 0:
-            gtk.idle_add(self.on_canvas_reset_tick, width, height)
+            gtk.idle_add(self.on_canvas_reset_tick, (width, height))
         self.emit('device-set', dmf_device)
 
     ###########################################################################
@@ -148,28 +223,101 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def shape_count(self):
         return self.df_shapes[self.shape_i_column].unique().shape[0]
 
-    ###########################################################################
-    # Render methods
-    def render_background(self, cairo_context=None):
-        if cairo_context is None:
-            cairo_context = self.widget.window.cairo_create()
+    @property
+    def enabled(self):
+        return self._enabled
 
+    @property
+    def mode(self):
+        return self._mode
+
+    @mode.setter
+    def mode(self, value):
+        if value in ('register_video', 'control'):
+            self._mode = value
+    ###########################################################################
+    # ## Mutators ##
+    def enable(self):
+        if self.callback_id is None:
+            self._enabled = True
+            self.surfaces['shapes'] = self.render_shapes()
+            self.callback_id = self.video_sink.connect('frame-update',
+                                                       self.on_frame_update)
+            self.emit('video-enabled')
+
+    def disable(self):
+        if self.callback_id is not None:
+            self._enabled = False
+            self.surfaces['shapes'] = self.render_shapes()
+            self.video_sink.disconnect(self.callback_id)
+            self.callback_id = None
+            self.emit('video-disabled')
+        self.on_frame_update(None, None)
+
+    ###########################################################################
+    # ## Drawing area event handling ##
+    def on_widget__configure_event(self, widget, event):
+        '''
+        Handle resize of Cairo drawing area.
+        '''
+        super(DmfDeviceCanvas, self).on_widget__configure_event(widget, event)
+        # Set new target size for scaled frames from video sink.
+        width, height = event.width, event.height
+        self.shape = width, height
+        self.video_sink.shape = width, height
+        self.reset_canvas_corners()
+        self.update_transforms()
+        if not self._enabled:
+            gtk.idle_add(self.on_frame_update, None, None)
+
+    ###########################################################################
+    # ## Drawing methods ##
+    def get_surfaces(self):
+        surface1 = cairo.ImageSurface(cairo.FORMAT_ARGB32, 320, 240)
+        surface1_context = cairo.Context(surface1)
+        surface1_context.set_source_rgba(0, 0, 1, .5)
+        surface1_context.rectangle(0, 0, surface1.get_width(), surface1.get_height())
+        surface1_context.fill()
+
+        surface2 = cairo.ImageSurface(cairo.FORMAT_ARGB32, 800, 600)
+        surface2_context = cairo.Context(surface2)
+        surface2_context.save()
+        surface2_context.translate(100, 200)
+        surface2_context.set_source_rgba(0, 1, .5, .5)
+        surface2_context.rectangle(0, 0, surface1.get_width(), surface1.get_height())
+        surface2_context.fill()
+        surface2_context.restore()
+
+        return [surface1, surface2]
+
+    def draw_surface(self, surface, operator=cairo.OPERATOR_OVER):
         x, y, width, height = self.widget.get_allocation()
+        if width <= 0 and height <= 0 or self.widget.window is None:
+            return
+        cairo_context = self.widget.window.cairo_create()
+        cairo_context.set_operator(operator)
+        cairo_context.set_source_surface(surface)
         cairo_context.rectangle(0, 0, width, height)
-        cairo_context.set_source_rgb(0, 0, 0)
         cairo_context.fill()
 
-    def render_default_connections(self, cairo_context=None):
-        self.render_connections(hex_color=self.connections_color,
-                                alpha=self.connections_alpha,
-                                cairo_context=cairo_context,
-                                **self.connections_attrs)
+    ###########################################################################
+    # Render methods
+    def render_background(self):
+        x, y, width, height = self.widget.get_allocation()
+        surface = cairo.ImageSurface(cairo.FORMAT_RGB24, width, height)
+        context = cairo.Context(surface)
+        context.rectangle(0, 0, width, height)
+        context.set_source_rgb(0, 0, 0)
+        context.fill()
+        return surface
 
     def render_connections(self, indexes=None, hex_color='#fff', alpha=1.,
-                           cairo_context=None, **kwargs):
-        if cairo_context is None:
-            cairo_context = self.widget.window.cairo_create()
-
+                           **kwargs):
+        x, y, width, height = self.widget.get_allocation()
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        if not self.connections_enabled:
+            return surface
+        cairo_context = cairo.Context(surface)
         coords_columns = ['source', 'target',
                           'x_center_source', 'y_center_source',
                           'x_center_target', 'y_center_target']
@@ -181,6 +329,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         rgba = hex_color_to_rgba(hex_color, normalize_to=1.)
         if rgba[-1] is None:
             rgba = rgba[:-1] + (alpha, )
+        cairo_context.set_line_width(2.5)
         for i, (target, source, x1, y1, x2, y2) in (df_connection_coords
                                                     .iterrows()):
             cairo_context.move_to(x1, y1)
@@ -189,11 +338,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 getattr(cairo_context, 'set_' + k)(v)
             cairo_context.line_to(x2, y2)
             cairo_context.stroke()
+        return surface
 
-    def render_shapes(self, df_shapes=None, cairo_context=None, clip=False):
-        if cairo_context is None:
-            cairo_context = self.widget.window.cairo_create()
-
+    def render_shapes(self, df_shapes=None, clip=False):
+        x, y, width, height = self.widget.get_allocation()
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        cairo_context = cairo.Context(surface)
         if df_shapes is None:
             df_shapes = self.canvas.df_canvas_shapes
 
@@ -209,30 +359,49 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 cairo_context.line_to(x, y)
             cairo_context.close_path()
             state = self.electrode_states.get(path_id, 0)
-            if state > 0:
-                color = 1, 1, 1
-            else:
-                color = 0, 0, 1
-            cairo_context.set_source_rgb(*color)
-            cairo_context.fill()
 
-    def render_routes(self, cairo_context=None):
-        if cairo_context is None:
-            cairo_context = self.widget.window.cairo_create()
+            if self.enabled:
+                # Video is enabled.
+
+                # Draw unfilled shape unless electrode state is active.
+                line_width = 2 if state > 0 else 1
+                cairo_context.set_line_width(line_width)
+                alpha = .5 if state > 0 else 0
+                cairo_context.set_source_rgba(1, 1, 1, alpha)
+                cairo_context.fill_preserve()
+                # Draw white border around electrode.
+                cairo_context.set_source_rgba(1, 1, 1, .7)
+                cairo_context.stroke()
+            else:
+                cairo_context.set_line_width(1)
+                color = (1, 1, 1) if state > 0 else (0, 0, 1)
+                cairo_context.set_source_rgb(*color)
+                cairo_context.fill_preserve()
+                cairo_context.set_source_rgba(1, 1, 1, .7)
+                cairo_context.stroke()
+        return surface
+
+    def render_routes(self):
+        x, y, width, height = self.widget.get_allocation()
+        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        cairo_context = cairo.Context(surface)
 
         for route_i, df_route in self.df_routes.groupby('route_i'):
             self.draw_drop_route(df_route, cairo_context, line_width=.25)
+        return surface
 
     def render(self):
-        self.reset_cairo_surface()
-        cairo_context = cairo.Context(self.cairo_surface)
-        self.render_background(cairo_context=cairo_context)
-        self.render_shapes(cairo_context=cairo_context)
-        if (hasattr(self.canvas, 'df_connection_centers') and
-            self.connections_enabled and self.connections_alpha > 0):
+        self.surfaces = OrderedDict()
+        self.surfaces['background'] = self.render_background()
+        self.surfaces['shapes'] = self.render_shapes()
+        self.surfaces['connections'] = self.render_default_connections()
+        self.surfaces['routes'] = self.render_routes()
+        self.cairo_surface = self.flatten_surfaces()
 
-            self.render_default_connections(cairo_context=cairo_context)
-        self.render_routes(cairo_context=cairo_context)
+    def render_default_connections(self):
+        return self.render_connections(hex_color=self.connections_color,
+                                       alpha=self.connections_alpha,
+                                       **self.connections_attrs)
 
     ###########################################################################
     # Drawing helper methods
@@ -268,7 +437,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             # MedOrange = rgb(250,164,58);
             # LiteGreen = rgb(144,205,151);
             # MedGreen = rgb(96,189,104);
-            color_rgb_255 = np.array([96,189,104])
+            color_rgb_255 = np.array([96,189,104, .8 * 255])
             color = (color_rgb_255 / 255.).tolist()
         if len(color) < 4:
             color += [1.] * (4 - len(color))
@@ -314,74 +483,85 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         '''
         Called when any mouse button is pressed.
         '''
-        shape = self.canvas.find_shape(event.x, event.y)
+        if self.mode == 'register_video' and event.button == 1:
+            self.start_event = event.copy()
+            return
+        elif self.mode == 'control':
+            shape = self.canvas.find_shape(event.x, event.y)
 
-        if shape is None: return
-        if event.button == 1:
-            # `<Alt>` key is held down.
-            # Start a new route.
-            self._route = Route(self.device)
-            self._route.append(shape)
-            self.emit('route-electrode-added', shape)
-            self.last_pressed = shape
+            if shape is None: return
+            if event.button == 1:
+                # `<Alt>` key is held down.
+                # Start a new route.
+                self._route = Route(self.device)
+                self._route.append(shape)
+                self.emit('route-electrode-added', shape)
+                self.last_pressed = shape
 
     def on_widget__button_release_event(self, widget, event):
         '''
         Called when any mouse button is released.
         '''
-        shape = self.canvas.find_shape(event.x, event.y)
+        if self.mode == 'register_video' and (event.button == 1 and
+                                              self.start_event is not None):
+            self.emit('point-pair-selected', {'start_event': self.start_event,
+                                              'end_event': event.copy()})
+            self.start_event = None
+            return
+        elif self.mode == 'control':
+            shape = self.canvas.find_shape(event.x, event.y)
 
-        if shape is None: return
+            if shape is None: return
 
-        if event.button == 1:
-            if gtk.gdk.BUTTON1_MASK == event.get_state():
-                if self._route.append(shape):
-                    self.emit('route-electrode-added', shape)
-                if len(self._route.electrode_ids) == 1:
-                    # Single electrode, so select electrode.
-                    self.emit('electrode-selected', {'electrode_id': shape,
-                                                     'event': event.copy()})
-                else:
-                    # Multiple electrodes, so select route.
-                    route = self._route
-                    self.emit('route-selected', route)
+            if event.button == 1:
+                if gtk.gdk.BUTTON1_MASK == event.get_state():
+                    if self._route.append(shape):
+                        self.emit('route-electrode-added', shape)
+                    if len(self._route.electrode_ids) == 1:
+                        # Single electrode, so select electrode.
+                        self.emit('electrode-selected', {'electrode_id': shape,
+                                                        'event': event.copy()})
+                    else:
+                        # Multiple electrodes, so select route.
+                        route = self._route
+                        self.emit('route-selected', route)
                     # Clear route.
                     self._route = None
-            elif (event.get_state() == (gtk.gdk.MOD1_MASK |
-                                        gtk.gdk.BUTTON1_MASK) and
-                  self.last_pressed != shape):
-                self.emit('electrode-pair-selected',
-                          {'source_id': self.last_pressed, 'target_id': shape,
-                           'event': event.copy()})
-            self.last_pressed = None
-        elif event.button == 3:
-            # Right-click pop-up menu.
-            def clear_electrode_states(widget):
-                self.emit('clear-electrode-states')
+                elif (event.get_state() == (gtk.gdk.MOD1_MASK |
+                                            gtk.gdk.BUTTON1_MASK) and
+                    self.last_pressed != shape):
+                    self.emit('electrode-pair-selected',
+                            {'source_id': self.last_pressed, 'target_id': shape,
+                            'event': event.copy()})
+                self.last_pressed = None
+            elif event.button == 3:
+                # Right-click pop-up menu.
+                def clear_electrode_states(widget):
+                    self.emit('clear-electrode-states')
 
-            def clear_routes(widget):
-                self.emit('clear-routes', shape)
+                def clear_routes(widget):
+                    self.emit('clear-routes', shape)
 
-            def clear_all_routes(widget):
-                self.emit('clear-routes', None)
+                def clear_all_routes(widget):
+                    self.emit('clear-routes', None)
 
-            menu = gtk.Menu()
-            menu_separator = gtk.SeparatorMenuItem()
-            menu_clear_electrode_states = gtk.MenuItem('Clear all electrode states')
-            menu_clear_electrode_states.connect('activate',
-                                                clear_electrode_states)
-            menu_clear_routes = gtk.MenuItem('Clear electrode routes')
-            menu_clear_routes.connect('activate', clear_routes)
-            menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
-            menu_clear_all_routes.connect('activate', clear_all_routes)
+                menu = gtk.Menu()
+                menu_separator = gtk.SeparatorMenuItem()
+                menu_clear_electrode_states = gtk.MenuItem('Clear all electrode states')
+                menu_clear_electrode_states.connect('activate',
+                                                    clear_electrode_states)
+                menu_clear_routes = gtk.MenuItem('Clear electrode routes')
+                menu_clear_routes.connect('activate', clear_routes)
+                menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
+                menu_clear_all_routes.connect('activate', clear_all_routes)
 
-            for item in (menu_clear_electrode_states, menu_separator,
-                         menu_clear_routes, menu_clear_all_routes):
-                menu.append(item)
-                item.show()
+                for item in (menu_clear_electrode_states, menu_separator,
+                            menu_clear_routes, menu_clear_all_routes):
+                    menu.append(item)
+                    item.show()
 
-            # Make menu popup
-            menu.popup(None, None, None, event.button, event.time)
+                # Make menu popup
+                menu.popup(None, None, None, event.button, event.time)
 
     def on_widget__motion_notify_event(self, widget, event):
         '''
@@ -424,3 +604,29 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when key is released when widget has focus.
         '''
         self.emit('key-release', {'event': event.copy()})
+
+    ###########################################################################
+    # ## Slave signal handling ##
+    def on_video_sink__frame_shape_changed(self, slave, shape):
+        # Video frame is a new shape.
+        self.reset_frame_corners()
+        self.update_transforms()
+
+    def on_frame_update(self, slave, np_frame):
+        if self.widget.window is None:
+            return
+        if np_frame is None or not self._enabled:
+            cr_warped = cairo.ImageSurface(cairo.FORMAT_RGB24, *self.shape)
+            context = cairo.Context(cr_warped)
+            context.set_source_rgb(0, 0, 0)
+            context.paint()
+        else:
+            cr_warped, np_warped_view = np_to_cairo(np_frame)
+        self.surfaces['background'] = cr_warped
+        refresh_gui(0, 0)
+
+        operator = getattr(self, 'cairo_operator', cairo.OPERATOR_OVER)
+        self.cairo_surface = composite_surface(self.surfaces.values(),
+                                               op=operator)
+        refresh_gui(0, 0)
+        self.draw()
