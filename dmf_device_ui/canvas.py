@@ -206,6 +206,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     def set_device(self, dmf_device):
         self.device = dmf_device
+        # Index channels by electrode ID for fast look up.
+        self.electrode_channels = (self.device.df_electrode_channels
+                                   .set_index('electrode_id'))
         self.df_shapes = self.device.df_shapes
         self.reset_routes()
         self.reset_states()

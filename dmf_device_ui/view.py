@@ -164,9 +164,13 @@ class DmfDeviceViewBase(SlaveView):
     ###########################################################################
     def on_canvas_slave__electrode_mouseover(self, slave, data):
         self.info_slave.electrode_id = data['electrode_id']
+        channels = (self.canvas_slave.electrode_channels
+                    .ix[data['electrode_id']])
+        self.info_slave.channels = ', '.join(map(str, channels))
 
     def on_canvas_slave__electrode_mouseout(self, slave, data):
         self.info_slave.electrode_id = ''
+        self.info_slave.channels = ''
 
     def on_canvas_slave__electrode_selected(self, slave, data):
         if self.plugin is not None:

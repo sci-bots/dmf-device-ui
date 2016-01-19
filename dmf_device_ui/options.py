@@ -38,19 +38,19 @@ class DeviceViewInfo(SlaveView):
 
         self.labels = OrderedDict([('electrode_count', gtk.Label()),
                                    ('connection_count', gtk.Label()),
-                                   ('electrode_tag', gtk.Label()),
-                                   ('electrode_id', gtk.Label())])
+                                   ('electrode_id', gtk.Label()),
+                                   ('channels', gtk.Label())])
 
-        self.labels['electrode_tag'].set_markup('<b>ID: </b>')
+        self.electrode_id = ''
 
         for i, (k, label) in enumerate(self.labels.iteritems()):
-            self.widget.pack_start(label, False, False,
-                                   10 if i >= 1 and i < len(self.labels) - 2
-                                   else 0)
+            self.widget.pack_start(label, False, False, 10)
 
     def __setattr__(self, name, value):
         if name == 'electrode_id':
-            self.labels[name].set_markup(value)
+            self.labels[name].set_markup('<b>ID:</b> %s' % value)
+        elif name == 'channels':
+            self.labels[name].set_markup('<b>Channels:</b> %s' % value)
         elif name == 'electrode_count':
             self.labels[name].set_markup('<b>Electrodes:</b> %s' % value)
         elif name == 'connection_count':
