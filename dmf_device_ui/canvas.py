@@ -62,6 +62,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     '''
     gsignal('clear-electrode-states')
     gsignal('clear-routes', object)
+    gsignal('execute-routes', object)
     gsignal('device-set', object)
     gsignal('electrode-mouseout', object)
     gsignal('electrode-mouseover', object)
@@ -545,18 +546,32 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 def clear_all_routes(widget):
                     self.emit('clear-routes', None)
 
+                def execute_routes(widget):
+                    self.emit('execute-routes', shape)
+
+                def execute_all_routes(widget):
+                    self.emit('execute-routes', None)
+
                 menu = gtk.Menu()
                 menu_separator = gtk.SeparatorMenuItem()
-                menu_clear_electrode_states = gtk.MenuItem('Clear all electrode states')
+                menu_clear_electrode_states = gtk.MenuItem('Clear all '
+                                                           'electrode states')
                 menu_clear_electrode_states.connect('activate',
                                                     clear_electrode_states)
                 menu_clear_routes = gtk.MenuItem('Clear electrode routes')
                 menu_clear_routes.connect('activate', clear_routes)
-                menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
+                menu_clear_all_routes = gtk.MenuItem('Clear all electrode '
+                                                     'routes')
                 menu_clear_all_routes.connect('activate', clear_all_routes)
+                menu_execute_routes = gtk.MenuItem('Execute electrode routes')
+                menu_execute_routes.connect('activate', execute_routes)
+                menu_execute_all_routes = gtk.MenuItem('Execute all electrode '
+                                                       'routes')
+                menu_execute_all_routes.connect('activate', execute_all_routes)
 
                 for item in (menu_clear_electrode_states, menu_separator,
-                            menu_clear_routes, menu_clear_all_routes):
+                             menu_clear_routes, menu_clear_all_routes,
+                             menu_execute_routes, menu_execute_all_routes):
                     menu.append(item)
                     item.show()
 

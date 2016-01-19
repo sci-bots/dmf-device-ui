@@ -231,6 +231,10 @@ class DmfDeviceViewBase(SlaveView):
                                            index=self.canvas_slave.device
                                            .electrodes)))
 
+    def on_canvas_slave__execute_routes(self, slave, electrode_id):
+        self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+                                  'execute_routes', electrode_id=electrode_id)
+
     ###########################################################################
     # ZeroMQ plugin callbacks
     ###########################################################################
