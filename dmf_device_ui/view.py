@@ -66,14 +66,20 @@ class DmfDeviceViewBase(SlaveView):
             self.widget.parent.move(allocation['x'], allocation['y'])
 
     def create_slaves(self):
-        self.video_mode_slave = self.add_slave(VideoModeSelector(), 'widget')
-        self.video_info_slave = self.add_slave(VideoInfo(), 'widget')
-        self.transform_slave = self.add_slave(Transform(), 'widget')
+        self.box_video = gtk.HBox()
+
+        self.video_mode_slave = self.add_slave(VideoModeSelector(),
+                                               'box_video')
+        self.video_info_slave = self.add_slave(VideoInfo(), 'box_video')
+        self.transform_slave = self.add_slave(Transform(), 'box_video')
         self.transform_slave.widget.set_sensitive(False)
 
-        self.info_slave = self.add_slave(DeviceViewInfo(), 'widget')
-        self.options_slave = self.add_slave(DeviceViewOptions(), 'widget')
-        self.debug_slave = self.add_slave(DebugView(), 'widget')
+        self.box_device = gtk.HBox()
+        self.options_slave = self.add_slave(DeviceViewOptions(), 'box_device')
+        self.info_slave = self.add_slave(DeviceViewInfo(), 'box_device')
+        for widget in (self.box_video, self.box_device):
+            self.widget.pack_start(widget, False, False, 0)
+
         self.canvas_slave = self.add_slave(self.device_canvas, 'widget')
 
         self.canvas_slave.video_sink.connect('frame-rate-update',
@@ -95,8 +101,8 @@ class DmfDeviceViewBase(SlaveView):
         for slave in self.slaves:
             if slave is self.canvas_slave:
                 continue
-            self.widget.set_child_packing(slave.widget, False, False, 0,
-                                          gtk.PACK_START)
+            slave.widget.parent.set_child_packing(slave.widget, False, False,
+                                                  5, gtk.PACK_START)
 
         def configure_window(*args):
             if self._allocation is not None:
@@ -139,10 +145,6 @@ class DmfDeviceViewBase(SlaveView):
     ###########################################################################
     # Options UI element callbacks
     ###########################################################################
-    def on_options_slave__labels_toggled(self, slave, active):
-        self.canvas_slave.render()
-        gtk.idle_add(self.canvas_slave.draw)
-
     def on_options_slave__connections_toggled(self, slave, active):
         self.canvas_slave.connections_enabled = active
         self.canvas_slave.surfaces['connections'] =\
@@ -204,12 +206,12 @@ class DmfDeviceViewBase(SlaveView):
                          target_id)
 
     def on_canvas_slave__route_selected(self, slave, route):
-        print 'Route selected:', route
+        logger.debug('Route selected: %s', route)
         self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
                                   'add_route', drop_route=route.electrode_ids)
 
     def on_canvas_slave__route_electrode_added(self, slave, electrode_id):
-        print 'Route electrode added:', electrode_id
+        logger.debug('Route electrode added: %s', electrode_id)
 
     def on_canvas_slave__clear_routes(self, slave, electrode_id):
         def refresh_routes(reply):
