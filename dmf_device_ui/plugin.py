@@ -122,6 +122,31 @@ class DevicePlugin(Plugin):
                 setattr(self.parent.canvas_slave, k, data[k])
         self.parent.canvas_slave.update_transforms()
 
+    def on_execute__get_video_configs(self, request):
+        return self.parent.video_mode_slave.configs
+
+    def on_execute__get_video_config(self, request):
+        return self.parent.video_config
+
+    def on_execute__set_video_config(self, request):
+        data = decode_content_data(request)
+        compare_fields = ['device', 'width', 'height', 'name', 'fourcc',
+                          'framerate']
+        for i, row in self.parent.video_mode_slave.configs.iterrows():
+            if (data['video_config'][compare_fields] ==
+                    row[compare_fields]).all():
+                break
+        else:
+            i = None
+        if i is None:
+            logger.error('Unsupported video config:\n%s', data['video_config'])
+            logger.error('Video configs:\n%s',
+                         self.parent.video_mode_slave.configs)
+        else:
+            logger.error('Set video config (%d):\n%s', i + 1,
+                         data['video_config'])
+            self.parent.video_mode_slave.config_combo.set_active(i + 1)
+
 
 class PluginConnection(SlaveView):
     gsignal('plugin-connected', object)

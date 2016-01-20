@@ -45,6 +45,7 @@ class DmfDeviceViewBase(SlaveView):
         self.heartbeat_timeout_id = None
         self.heartbeat_alive_timestamp = None
         self.route = None
+        self.video_config = None
         super(DmfDeviceViewBase, self).__init__()
 
     def __del__(self):
@@ -350,6 +351,10 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_video_mode_slave__video_config_selected(self, slave, video_config):
         logger.info('video config selected\n%s', video_config)
+        self.set_video_config(video_config)
+
+    def set_video_config(self, video_config):
+        self.video_config = video_config
         if video_config is None:
             self.canvas_slave.disable()
             self.cleanup_video()
@@ -371,6 +376,7 @@ class DmfDeviceViewBase(SlaveView):
         transport = self.canvas_slave.video_sink.socket_info['transport']
         host = (self.canvas_slave.video_sink.socket_info['host']
                 .replace('*', 'localhost'))
+
         # Terminate existing process (if running).
         self.cleanup_video()
         command = [py_exe, '-m', 'pygst_utils.video_view.video_source', '-p',
