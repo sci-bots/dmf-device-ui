@@ -17,7 +17,7 @@ import numpy as np
 import pandas as pd
 import zmq
 
-from .options import DeviceViewOptions, DeviceViewInfo
+from .options import DeviceViewOptions, DeviceViewInfo, DebugView
 from .plugin import DevicePluginConnection, DevicePlugin
 from . import gtk_wait, generate_plugin_name
 
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 class DmfDeviceViewBase(SlaveView):
     def __init__(self, device_canvas, hub_uri='tcp://localhost:31000',
                  plugin_name=None, allocation=None, video_transport='tcp',
-                 video_host='*', video_port=None):
+                 video_host='*', video_port=None, debug_view=False):
         # Video sink socket info.
         self.socket_info = {'transport': video_transport,
                             'host': video_host,
@@ -39,6 +39,7 @@ class DmfDeviceViewBase(SlaveView):
         self._hub_uri = hub_uri
         self._plugin_name = plugin_name or generate_plugin_name()
         self._allocation = allocation
+        self._debug_view = debug_view
         self.plugin = None
         self.socket_timeout_id = None
         self.heartbeat_timeout_id = None
@@ -74,6 +75,8 @@ class DmfDeviceViewBase(SlaveView):
         self.transform_slave.widget.set_sensitive(False)
 
         self.box_device = gtk.HBox()
+        if self._debug_view:
+            self.debug_slave = self.add_slave(DebugView(), 'box_device')
         self.options_slave = self.add_slave(DeviceViewOptions(), 'box_device')
         self.info_slave = self.add_slave(DeviceViewInfo(), 'box_device')
         for widget in (self.box_video, self.box_device):

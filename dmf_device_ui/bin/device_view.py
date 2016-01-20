@@ -28,6 +28,8 @@ def parse_args(args=None):
     parser.add_argument('-a', '--allocation', default=None,
                         help='Window allocation: x, y, width, height (JSON'
                         'object)')
+    parser.add_argument('-d', '--debug', action='store_true',
+                        help='Include IPython button for debugging.')
 
     subparsers = parser.add_subparsers(help='help for subcommand',
                                        dest='command')
@@ -59,11 +61,13 @@ def main():
     if args.command == 'fixed':
         view = DmfDeviceFixedHubView(canvas, hub_uri=args.hub_uri,
                                      plugin_name=args.plugin_name,
-                                     allocation=allocation)
+                                     allocation=allocation,
+                                     debug_view=args.debug)
     elif args.command == 'configurable':
         view = DmfDeviceConfigurableHubView(canvas, hub_uri=args.hub_uri,
                                             plugin_name=args.plugin_name,
-                                            allocation=allocation)
+                                            allocation=allocation,
+                                            debug_view=args.debug)
 
     view.widget.connect('destroy', gtk.main_quit)
 
