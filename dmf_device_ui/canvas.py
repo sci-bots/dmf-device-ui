@@ -124,24 +124,33 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self._route = None
         self.connections_enabled = (self.connections_alpha > 0)
 
+        self.default_corners = {}  # {'canvas': None, 'frame': None}
+
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
                                               **kwargs)
 
     def reset_canvas_corners(self):
+        self.df_canvas_corners = (self.default_corners
+                                  .get('canvas',
+                                       self.default_canvas_corners()))
+
+    def reset_frame_corners(self):
+        self.df_frame_corners = (self.default_corners
+                                 .get('frame', self.default_frame_corners()))
+
+    def default_canvas_corners(self):
         if self.shape is None:
             return
         width, height = self.shape
-        self.df_canvas_corners = pd.DataFrame([[0, 0], [width, 0],
-                                               [width, height], [0, height]],
-                                              columns=['x', 'y'], dtype=float)
+        return pd.DataFrame([[0, 0], [width, 0], [width, height], [0, height]],
+                            columns=['x', 'y'], dtype=float)
 
-    def reset_frame_corners(self):
+    def default_frame_corners(self):
         if self.video_sink.frame_shape is None:
             return
         width, height = self.video_sink.frame_shape
-        self.df_frame_corners = pd.DataFrame([[0, 0], [width, 0],
-                                              [width, height], [0, height]],
-                                              columns=['x', 'y'], dtype=float)
+        return pd.DataFrame([[0, 0], [width, 0], [width, height], [0, height]],
+                            columns=['x', 'y'], dtype=float)
 
     def update_transforms(self):
         import cv2
@@ -319,7 +328,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                            **kwargs):
         x, y, width, height = self.widget.get_allocation()
         surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
-        if not self.connections_enabled:
+        if not self.connections_enabled or not hasattr(self.canvas,
+                                                       'df_connection_centers'):
             return surface
         cairo_context = cairo.Context(surface)
         coords_columns = ['source', 'target',

@@ -322,6 +322,7 @@ class DmfDeviceViewBase(SlaveView):
     # ## Slave signal handling ##
     def on_transform_slave__transform_reset(self, slave):
         logger.info('[View] reset transform')
+        self.canvas_slave.default_corners = {}
         self.canvas_slave.reset_canvas_corners()
         self.canvas_slave.reset_frame_corners()
         self.canvas_slave.update_transforms()

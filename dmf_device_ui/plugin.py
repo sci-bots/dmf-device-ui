@@ -98,6 +98,30 @@ class DevicePlugin(Plugin):
     def on_execute__terminate(self, request):
         self.parent.terminate()
 
+    def on_execute__get_corners(self, request):
+        return {'allocation': self.parent.get_allocation(),
+                'df_canvas_corners': self.parent.canvas_slave.df_canvas_corners,
+                'df_frame_corners': self.parent.canvas_slave.df_frame_corners}
+
+    def on_execute__get_default_corners(self, request):
+        return self.parent.canvas_slave.default_corners
+
+    def on_execute__set_default_corners(self, request):
+        data = decode_content_data(request)
+        if 'canvas' in data and 'frame' in data:
+            for k in ('canvas', 'frame'):
+                self.parent.canvas_slave.default_corners[k] = data[k]
+        self.parent.canvas_slave.reset_canvas_corners()
+        self.parent.canvas_slave.reset_frame_corners()
+        self.parent.canvas_slave.update_transforms()
+
+    def on_execute__set_corners(self, request):
+        data = decode_content_data(request)
+        if 'df_canvas_corners' in data and 'df_frame_corners' in data:
+            for k in ('df_canvas_corners', 'df_frame_corners'):
+                setattr(self.parent.canvas_slave, k, data[k])
+        self.parent.canvas_slave.update_transforms()
+
 
 class PluginConnection(SlaveView):
     gsignal('plugin-connected', object)
