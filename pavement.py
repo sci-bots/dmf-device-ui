@@ -20,7 +20,7 @@ setup(name='dmf-device-ui',
       packages=['dmf_device_ui'],
       install_requires=['microdrop-utility>=0.4', 'networkx>=1.10', 'pandas',
                         'path-helpers>=0.2', 'svg_model>=0.5.post14',
-                        'pygst-utils>=0.2.post18',
+                        'pygst-utils>=0.2.post20',
                         'wheeler.pygtkhelpers>=0.11.post7',
                         'zmq-plugin>=0.1.post9'],
       # Install data listed in `MANIFEST.in`

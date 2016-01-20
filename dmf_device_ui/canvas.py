@@ -635,9 +635,33 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     ###########################################################################
     # ## Slave signal handling ##
-    def on_video_sink__frame_shape_changed(self, slave, shape):
+    def on_video_sink__frame_shape_changed(self, slave, old_shape, new_shape):
         # Video frame is a new shape.
-        self.reset_frame_corners()
+        if old_shape is not None:
+            # Switched video resolution, so scale existing corners to maintain
+            # video registration.
+            old_shape = pd.Series(old_shape, dtype=float, index=['width',
+                                                                 'height'])
+            new_shape = pd.Series(new_shape, dtype=float, index=['width',
+                                                                 'height'])
+            old_aspect_ratio = old_shape.width / old_shape.height
+            new_aspect_ratio = new_shape.width / new_shape.height
+            if old_aspect_ratio != new_aspect_ratio:
+                # The aspect ratio has changed.  The registration will have the
+                # proper rotational orientation, but the scale will be off and
+                # will require manual adjustment.
+                logger.warning('Aspect ratio does not match previous frame.  '
+                               'Manual adjustment of registration is required.')
+
+            corners_scale = new_shape / old_shape
+            df_frame_corners = self.df_frame_corners.copy()
+            df_frame_corners.y = old_shape.height - df_frame_corners.y
+            df_frame_corners *= corners_scale.values
+            df_frame_corners.y = new_shape.height - df_frame_corners.y
+            self.df_frame_corners = df_frame_corners
+        else:
+            # No existing frame shape, so nothing to scale from.
+            self.reset_frame_corners()
         self.update_transforms()
 
     def on_frame_update(self, slave, np_frame):
