@@ -22,7 +22,7 @@ setup(name='dmf-device-ui',
                         'path-helpers>=0.2', 'svg_model>=0.5.post14',
                         'pygst-utils>=0.2.post20',
                         'wheeler.pygtkhelpers>=0.11.post13',
-                        'zmq-plugin>=0.1.post9'],
+                        'zmq-plugin>=0.2'],
       # Install data listed in `MANIFEST.in`
       include_package_data=True)
 

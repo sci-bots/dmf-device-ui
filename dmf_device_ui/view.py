@@ -260,7 +260,7 @@ class DmfDeviceViewBase(SlaveView):
         if self.plugin is not None:
             try:
                 self.plugin.execute(self.plugin.hub_name, 'ping', timeout_s=1,
-                                    wait_func=gtk_wait)
+                                    wait_func=gtk_wait, silent=True)
             except IOError:
                 self.on_heartbeat_error()
             else:
