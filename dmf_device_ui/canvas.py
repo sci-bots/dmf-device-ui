@@ -402,8 +402,29 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         surface = self.get_surface()
         cairo_context = cairo.Context(surface)
 
+        connections = self.device.df_shape_connections
         for route_i, df_route in self.df_routes.groupby('route_i'):
-            self.draw_drop_route(df_route, cairo_context, line_width=.25)
+            source_id = df_route.electrode_i.iloc[0]
+            source_connections = connections.loc[(connections.source ==
+                                                  source_id) |
+                                                 (connections.target ==
+                                                  source_id)]
+
+            # Colors from ["Show me the numbers"][1].
+            #
+            # [1]: http://blog.axc.net/its-the-colors-you-have/
+            # LiteOrange = rgb(251,178,88);
+            # MedOrange = rgb(250,164,58);
+            # LiteGreen = rgb(144,205,151);
+            # MedGreen = rgb(96,189,104);
+            if source_connections.shape[0] == 1:
+                # Electrode only has one adjacent electrode, assume reservoir.
+                color_rgb_255 = np.array([250, 164, 58, 255])
+            else:
+                color_rgb_255 = np.array([96, 189, 104, 255])
+            color = (color_rgb_255 / 255.).tolist()
+            self.draw_route(df_route, cairo_context, color=color,
+                            line_width=.25)
         return surface
 
     def render_channel_labels(self, color_rgba=None):
@@ -435,9 +456,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     ###########################################################################
     # Drawing helper methods
-    def draw_drop_route(self, df_route, cr, color=None, line_width=None):
+    def draw_route(self, df_route, cr, color=None, line_width=None):
         '''
-        Draw a line between electrodes listed in a droplet route.
+        Draw a line between electrodes listed in a route.
 
         Arguments
         ---------
