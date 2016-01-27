@@ -9,6 +9,7 @@ from cairo_helpers.surface import flatten_surfaces, np_cairo_view
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
 from pygtkhelpers.ui.views import find_closest
+from pygtkhelpers.ui.views.surface import LayerAlphaController
 from pygst_utils.video_view.mode import VideoModeSelector
 from pygst_utils.video_view.video_sink import Transform, VideoInfo
 import cv2
@@ -18,7 +19,7 @@ import numpy as np
 import pandas as pd
 import zmq
 
-from .options import DeviceViewOptions, DeviceViewInfo, DebugView
+from .options import DeviceViewInfo, DebugView
 from .plugin import DevicePluginConnection, DevicePlugin
 from . import gtk_wait, generate_plugin_name
 
@@ -68,24 +69,29 @@ class DmfDeviceViewBase(SlaveView):
             self.widget.parent.move(allocation['x'], allocation['y'])
 
     def create_slaves(self):
-        self.box_video = gtk.HBox()
+        self.box_settings = gtk.HBox()
+        self.box_video = gtk.VBox()
 
         self.video_mode_slave = self.add_slave(VideoModeSelector(),
                                                'box_video')
         self.video_info_slave = self.add_slave(VideoInfo(), 'box_video')
         self.transform_slave = self.add_slave(Transform(), 'box_video')
         self.transform_slave.widget.set_sensitive(False)
-
-        self.box_device = gtk.HBox()
+        self.info_slave = self.add_slave(DeviceViewInfo(), 'box_video')
         if self._debug_view:
-            self.debug_slave = self.add_slave(DebugView(), 'box_device')
-        self.options_slave = self.add_slave(DeviceViewOptions(), 'box_device')
-        self.info_slave = self.add_slave(DeviceViewInfo(), 'box_device')
-        for widget in (self.box_video, self.box_device):
-            self.widget.pack_start(widget, False, False, 0)
+            self.debug_slave = self.add_slave(DebugView(), 'box_video')
+
+        self.box_device = gtk.VBox()
+        self.layer_alpha_slave = \
+            self.add_slave(LayerAlphaController(self.device_canvas),
+                           'box_device')
+
+        self.box_settings.pack_start(self.box_video, False, False, 0)
+        self.box_settings.pack_start(self.box_device, True, True, 0)
+
+        self.widget.pack_start(self.box_settings, False, False, 0)
 
         self.canvas_slave = self.add_slave(self.device_canvas, 'widget')
-
         self.canvas_slave.video_sink.connect('frame-rate-update',
                                              self.on_frame_rate_update)
 
@@ -96,10 +102,6 @@ class DmfDeviceViewBase(SlaveView):
 
         self.info_slave.connection_count = self.canvas_slave.connection_count
         self.info_slave.electrode_count = self.canvas_slave.shape_count
-
-        self.options_slave.connections = self.canvas_slave.connections_enabled
-        self.options_slave.connections_alpha = (self.canvas_slave
-                                                .connections_alpha)
 
         # Pack load and save sections to end of row.
         for slave in self.slaves:
@@ -150,23 +152,6 @@ class DmfDeviceViewBase(SlaveView):
     def terminate(self):
         self.cleanup()
         gtk.main_quit()
-    ###########################################################################
-    # Options UI element callbacks
-    ###########################################################################
-    def on_options_slave__connections_toggled(self, slave, active):
-        self.canvas_slave.connections_enabled = active
-        self.canvas_slave.surfaces['connections'] =\
-            self.canvas_slave.render_default_connections()
-        self.canvas_slave.cairo_surface = self.canvas_slave.flatten_surfaces()
-        gtk.idle_add(self.canvas_slave.draw)
-
-    def on_options_slave__connections_alpha_changed(self, slave, alpha):
-        self.canvas_slave.connections_alpha = alpha
-        self.canvas_slave.surfaces['connections'] = \
-            self.canvas_slave.render_default_connections()
-        self.canvas_slave.cairo_surface = self.canvas_slave.flatten_surfaces()
-        gtk.idle_add(self.canvas_slave.draw)
-
     ###########################################################################
     # Device canvas event callbacks
     ###########################################################################
@@ -246,6 +231,17 @@ class DmfDeviceViewBase(SlaveView):
     def on_canvas_slave__execute_routes(self, slave, electrode_id):
         self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
                                   'execute_routes', electrode_id=electrode_id)
+
+    def on_canvas_slave__surfaces_reset(self, slave, df_surfaces):
+        logger.debug('[surfaces reset]\n%s', df_surfaces)
+        self.layer_alpha_slave.set_surfaces(df_surfaces)
+
+    def on_layer_alpha_slave__alpha_changed(self, slave, name, alpha):
+        logger.debug('[alpha changed] %s -> %.2f', name, alpha)
+        self.canvas_slave.set_surface_alpha(name, alpha)
+        self.canvas_slave.cairo_surface = flatten_surfaces(self.canvas_slave
+                                                           .df_surfaces)
+        gtk.idle_add(self.canvas_slave.draw)
 
     ###########################################################################
     # ZeroMQ plugin callbacks

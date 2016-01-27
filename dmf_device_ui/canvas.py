@@ -387,14 +387,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 cairo_context.set_source_rgba(1, 1, 1, alpha)
                 cairo_context.fill_preserve()
                 # Draw white border around electrode.
-                cairo_context.set_source_rgba(1, 1, 1, .7)
+                cairo_context.set_source_rgb(1, 1, 1)
                 cairo_context.stroke()
             else:
                 cairo_context.set_line_width(1)
                 color = (1, 1, 1) if state > 0 else (0, 0, 1)
                 cairo_context.set_source_rgb(*color)
                 cairo_context.fill_preserve()
-                cairo_context.set_source_rgba(1, 1, 1, .7)
+                cairo_context.set_source_rgba(1, 1, 1)
                 cairo_context.stroke()
         return surface
 
@@ -432,11 +432,6 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.emit('surfaces-reset', self.df_surfaces)
         logger.info('[render]\n%s', self.df_surfaces)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)
-
-    def render_default_connections(self):
-        return self.render_connections(hex_color=self.connections_color,
-                                       alpha=self.connections_alpha,
-                                       **self.connections_attrs)
 
     ###########################################################################
     # Drawing helper methods

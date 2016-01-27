@@ -34,7 +34,6 @@ class DebugView(SlaveView):
 class DeviceViewInfo(SlaveView):
     def create_ui(self):
         super(DeviceViewInfo, self).create_ui()
-        self.widget.set_orientation(gtk.ORIENTATION_HORIZONTAL)
 
         self.labels = OrderedDict([('electrode_count', gtk.Label()),
                                    ('connection_count', gtk.Label()),
@@ -44,8 +43,16 @@ class DeviceViewInfo(SlaveView):
         self.electrode_id = ''
         self.channels = ''
 
-        for i, (k, label) in enumerate(self.labels.iteritems()):
-            self.widget.pack_start(label, False, False, 10)
+        self.top_box = gtk.HBox()
+        for k in ['electrode_count', 'connection_count']:
+            self.top_box.pack_start(self.labels[k], False, False, 10)
+
+        self.bottom_box = gtk.HBox()
+        for k in ['electrode_id', 'channels']:
+            self.bottom_box.pack_start(self.labels[k], False, False, 10)
+
+        for box in (self.top_box, self.bottom_box):
+            self.widget.pack_start(box, False, False, 0)
 
     def __setattr__(self, name, value):
         if name == 'electrode_id':
