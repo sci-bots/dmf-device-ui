@@ -226,6 +226,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             gtk.idle_add(self.on_canvas_reset_tick, (width, height))
         self.emit('device-set', dmf_device)
 
+    def get_labels(self):
+        return (self.electrode_channels.astype(str)
+                .groupby(level='electrode_id', axis=0)
+                .agg(lambda v: ', '.join(v))['channel'])
+
     ###########################################################################
     # Properties
     @property
@@ -403,6 +408,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         for route_i, df_route in self.df_routes.groupby('route_i'):
             self.draw_drop_route(df_route, cairo_context, line_width=.25)
         return surface
+
+    def render_channel_labels(self, color_rgba=None):
+        return self.render_labels(self.get_labels(), color_rgba=color_rgba)
 
     def render(self):
         self.surfaces = OrderedDict()
