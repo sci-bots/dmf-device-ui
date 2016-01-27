@@ -3,8 +3,8 @@ from collections import OrderedDict
 import itertools
 import logging
 
+from cairo_helpers.surface import flatten_surfaces
 from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
-from pygtkhelpers.ui.views import composite_surface
 from pygtkhelpers.utils import gsignal, refresh_gui
 from pygst_utils.video_view.video_sink import VideoSink
 from pygst_utils.video_view import np_to_cairo
@@ -72,6 +72,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('key-release', object)
     gsignal('route-electrode-added', object)
     gsignal('route-selected', object)
+    gsignal('surface-rendered', str, object)
+    gsignal('surfaces-reset', object)
 
     # Video signals
     gsignal('point-pair-selected', object)
@@ -100,7 +102,6 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.canvas_to_frame_map = None
         # Shape of canvas (i.e., drawing area widget).
         self.shape = None
-        self.surfaces = OrderedDict()
 
         self.mode = 'control'
 
@@ -258,7 +259,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def enable(self):
         if self.callback_id is None:
             self._enabled = True
-            self.surfaces['shapes'] = self.render_shapes()
+            self.set_surface('shapes', self.render_shapes())
             self.callback_id = self.video_sink.connect('frame-update',
                                                        self.on_frame_update)
             self.emit('video-enabled')
@@ -266,7 +267,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def disable(self):
         if self.callback_id is not None:
             self._enabled = False
-            self.surfaces['shapes'] = self.render_shapes()
+            self.set_surface('shapes', self.render_shapes())
             self.video_sink.disconnect(self.callback_id)
             self.callback_id = None
             self.emit('video-disabled')
@@ -408,13 +409,29 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def render_channel_labels(self, color_rgba=None):
         return self.render_labels(self.get_labels(), color_rgba=color_rgba)
 
+    def set_surface(self, name, surface):
+        self.df_surfaces.loc[self.df_surfaces['name'] == name,
+                             'surface'] = surface
+        self.emit('surface-rendered', name, surface)
+
+    def set_surface_alpha(self, name, alpha):
+        if 'alpha' not in self.df_surfaces:
+            self.df_surfaces['alpha'] = 1.
+        self.df_surfaces.loc[self.df_surfaces.name == name, 'alpha'] = alpha
+
     def render(self):
-        self.surfaces = OrderedDict()
-        self.surfaces['background'] = self.render_background()
-        self.surfaces['shapes'] = self.render_shapes()
-        self.surfaces['connections'] = self.render_default_connections()
-        self.surfaces['routes'] = self.render_routes()
-        self.cairo_surface = self.flatten_surfaces()
+        self.df_surfaces = pd.DataFrame([['background',
+                                          self.render_background()],
+                                         ['shapes', self.render_shapes()],
+                                         ['connections',
+                                          self.render_connections()],
+                                         ['routes', self.render_routes()]],
+                                        columns=['name', 'surface'])
+        for name, surface in self.df_surfaces.values:
+            self.emit('surface-rendered', name, surface)
+        self.emit('surfaces-reset', self.df_surfaces)
+        logger.info('[render]\n%s', self.df_surfaces)
+        self.cairo_surface = flatten_surfaces(self.df_surfaces)
 
     def render_default_connections(self):
         return self.render_connections(hex_color=self.connections_color,
@@ -678,11 +695,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             context.paint()
         else:
             cr_warped, np_warped_view = np_to_cairo(np_frame)
-        self.surfaces['background'] = cr_warped
+        self.set_surface('background', cr_warped)
         refresh_gui(0, 0)
-
-        operator = getattr(self, 'cairo_operator', cairo.OPERATOR_OVER)
-        self.cairo_surface = composite_surface(self.surfaces.values(),
-                                               op=operator)
-        refresh_gui(0, 0)
+        self.cairo_surface = flatten_surfaces(self.df_surfaces)
         self.draw()

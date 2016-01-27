@@ -5,6 +5,7 @@ import logging
 import platform
 import sys
 
+from cairo_helpers.surface import flatten_surfaces, np_cairo_view
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
 from pygtkhelpers.ui.views import find_closest
@@ -297,29 +298,32 @@ class DmfDeviceViewBase(SlaveView):
         if not (self.canvas_slave.electrode_states
                 .equals(updated_electrode_states)):
             self.canvas_slave.electrode_states = updated_electrode_states
-            self.canvas_slave.surfaces['shapes'] = (self.canvas_slave
-                                                    .render_shapes())
-            self.canvas_slave.cairo_surface = (self.canvas_slave
-                                               .flatten_surfaces())
+            self.canvas_slave.set_surface('shapes',
+                                          self.canvas_slave.render_shapes())
+            self.canvas_slave.cairo_surface = flatten_surfaces(self
+                                                               .canvas_slave
+                                                               .df_surfaces)
             gtk.idle_add(self.canvas_slave.draw)
 
     def on_electrode_states_set(self, states):
         if not (self.canvas_slave.electrode_states
                 .equals(states['electrode_states'])):
             self.canvas_slave.electrode_states = states['electrode_states']
-            self.canvas_slave.surfaces['shapes'] = (self.canvas_slave
-                                                    .render_shapes())
-            self.canvas_slave.cairo_surface = (self.canvas_slave
-                                               .flatten_surfaces())
+            self.canvas_slave.set_surface('shapes',
+                                          self.canvas_slave.render_shapes())
+            self.canvas_slave.cairo_surface = flatten_surfaces(self
+                                                               .canvas_slave
+                                                               .df_surfaces)
             gtk.idle_add(self.canvas_slave.draw)
 
     def on_routes_set(self, df_routes):
         if not self.canvas_slave.df_routes.equals(df_routes):
             self.canvas_slave.df_routes = df_routes
-            self.canvas_slave.surfaces['routes'] = (self.canvas_slave
-                                                    .render_routes())
-            self.canvas_slave.cairo_surface = (self.canvas_slave
-                                               .flatten_surfaces())
+            self.canvas_slave.set_surface('routes',
+                                          self.canvas_slave.render_routes())
+            self.canvas_slave.cairo_surface = flatten_surfaces(self
+                                                               .canvas_slave
+                                                               .df_surfaces)
             gtk.idle_add(self.canvas_slave.draw)
 
     ###########################################################################
