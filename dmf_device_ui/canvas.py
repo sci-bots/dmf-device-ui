@@ -321,8 +321,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     ###########################################################################
     # Render methods
     def render_background(self):
-        x, y, width, height = self.widget.get_allocation()
-        surface = cairo.ImageSurface(cairo.FORMAT_RGB24, width, height)
+        surface = self.get_surface()
         context = cairo.Context(surface)
         context.rectangle(0, 0, width, height)
         context.set_source_rgb(0, 0, 0)
@@ -331,8 +330,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     def render_connections(self, indexes=None, hex_color='#fff', alpha=1.,
                            **kwargs):
-        x, y, width, height = self.widget.get_allocation()
-        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        surface = self.get_surface()
         if not self.connections_enabled or not hasattr(self.canvas,
                                                        'df_connection_centers'):
             return surface
@@ -360,8 +358,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         return surface
 
     def render_shapes(self, df_shapes=None, clip=False):
-        x, y, width, height = self.widget.get_allocation()
-        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        surface = self.get_surface()
         cairo_context = cairo.Context(surface)
         if df_shapes is None:
             df_shapes = self.canvas.df_canvas_shapes
@@ -401,8 +398,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         return surface
 
     def render_routes(self):
-        x, y, width, height = self.widget.get_allocation()
-        surface = cairo.ImageSurface(cairo.FORMAT_ARGB32, width, height)
+        surface = self.get_surface()
         cairo_context = cairo.Context(surface)
 
         for route_i, df_route in self.df_routes.groupby('route_i'):
