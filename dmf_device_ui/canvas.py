@@ -324,16 +324,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def render_background(self):
         surface = self.get_surface()
         context = cairo.Context(surface)
-        context.rectangle(0, 0, width, height)
         context.set_source_rgb(0, 0, 0)
-        context.fill()
+        context.paint()
         return surface
 
     def render_connections(self, indexes=None, hex_color='#fff', alpha=1.,
                            **kwargs):
         surface = self.get_surface()
-        if not self.connections_enabled or not hasattr(self.canvas,
-                                                       'df_connection_centers'):
+        if not hasattr(self.canvas, 'df_connection_centers'):
             return surface
         cairo_context = cairo.Context(surface)
         coords_columns = ['source', 'target',
@@ -400,8 +398,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     def render_routes(self):
         surface = self.get_surface()
-        cairo_context = cairo.Context(surface)
 
+        if (not hasattr(self.device, 'df_shape_connections') or
+                not hasattr(self.canvas, 'df_shape_centers')):
+            return surface
+
+        cairo_context = cairo.Context(surface)
         connections = self.device.df_shape_connections
         for route_i, df_route in self.df_routes.groupby('route_i'):
             source_id = df_route.electrode_i.iloc[0]
