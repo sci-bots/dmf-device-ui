@@ -379,10 +379,10 @@ class DmfDeviceViewBase(SlaveView):
 
         # Terminate existing process (if running).
         self.cleanup_video()
+        video_command = (device_str + ' ! ffmpegcolorspace ! ' + caps_str +
+                         ' ! appsink name=app-video emit-signals=true')
         command = [py_exe, '-m', 'pygst_utils.video_view.video_source', '-p',
-                   str(port), transport, host,
-                   device_str + ' ! ffmpegcolorspace ! ' + caps_str +
-                   ' ! appsink name=app-video emit-signals=true']
+                   str(port), transport, host, video_command]
         logger.info(' '.join(command))
         self.video_source_process = Popen(command)
         self.canvas_slave.enable()
