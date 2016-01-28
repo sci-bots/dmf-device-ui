@@ -132,16 +132,20 @@ class DevicePlugin(Plugin):
         data = decode_content_data(request)
         compare_fields = ['device', 'width', 'height', 'name', 'fourcc',
                           'framerate']
-        for i, row in self.parent.video_mode_slave.configs.iterrows():
-            if (data['video_config'][compare_fields] ==
-                    row[compare_fields]).all():
-                break
-        else:
+        if data['video_config'] is None:
             i = None
+        else:
+            for i, row in self.parent.video_mode_slave.configs.iterrows():
+                if (row[compare_fields] ==
+                        data['video_config'][compare_fields]).all():
+                    break
+            else:
+                i = None
         if i is None:
             logger.error('Unsupported video config:\n%s', data['video_config'])
             logger.error('Video configs:\n%s',
                          self.parent.video_mode_slave.configs)
+            self.parent.video_mode_slave.config_combo.set_active(0)
         else:
             logger.error('Set video config (%d):\n%s', i + 1,
                          data['video_config'])
