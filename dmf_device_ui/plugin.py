@@ -147,6 +147,19 @@ class DevicePlugin(Plugin):
                          data['video_config'])
             self.parent.video_mode_slave.config_combo.set_active(i + 1)
 
+    def on_execute__get_surface_alphas(self, request):
+        logger.debug('[on_execute__get_surface_alphas] %s',
+                     self.parent.canvas_slave.df_surfaces)
+        return (self.parent.canvas_slave.df_surfaces[['name', 'alpha']]
+                .values.tolist())
+
+    def on_execute__set_surface_alphas(self, request):
+        data = decode_content_data(request)
+        logger.debug('[on_execute__set_surface_alphas] %s',
+                     data['surface_alphas'])
+        for name, alpha in data['surface_alphas']:
+            self.parent.canvas_slave.set_surface_alpha(name, alpha)
+
 
 class PluginConnection(SlaveView):
     gsignal('plugin-connected', object)

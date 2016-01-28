@@ -180,6 +180,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.widget.set_flags(gtk.CAN_FOCUS)
         self.widget.add_events(gtk.gdk.KEY_PRESS_MASK |
                                gtk.gdk.KEY_RELEASE_MASK)
+        # Create initial (empty) cairo surfaces.
+        self.df_surfaces = pd.DataFrame([[k, self.get_surface(), 1.]
+                                         for k in ('background', 'shapes',
+                                                   'connections', 'routes')],
+                                        columns=['name', 'surface', 'alpha'])
 
     def reset_canvas(self, width, height):
         from svg_model import compute_shape_centers
@@ -443,17 +448,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.df_surfaces.loc[self.df_surfaces.name == name, 'alpha'] = alpha
 
     def render(self):
-        self.df_surfaces = pd.DataFrame([['background',
-                                          self.render_background()],
-                                         ['shapes', self.render_shapes()],
-                                         ['connections',
-                                          self.render_connections()],
-                                         ['routes', self.render_routes()]],
-                                        columns=['name', 'surface'])
-        for name, surface in self.df_surfaces.values:
-            self.emit('surface-rendered', name, surface)
+        # Render each layer and update data frame with new content for each
+        # surface.
+        for k in ('background', 'shapes', 'connections', 'routes'):
+            self.set_surface(k, getattr(self, 'render_' + k)())
         self.emit('surfaces-reset', self.df_surfaces)
-        logger.info('[render]\n%s', self.df_surfaces)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)
 
     ###########################################################################
