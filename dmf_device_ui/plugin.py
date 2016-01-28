@@ -154,14 +154,13 @@ class DevicePlugin(Plugin):
     def on_execute__get_surface_alphas(self, request):
         logger.debug('[on_execute__get_surface_alphas] %s',
                      self.parent.canvas_slave.df_surfaces)
-        return (self.parent.canvas_slave.df_surfaces[['name', 'alpha']]
-                .values.tolist())
+        return self.parent.canvas_slave.df_surfaces['alpha']
 
     def on_execute__set_surface_alphas(self, request):
         data = decode_content_data(request)
         logger.debug('[on_execute__set_surface_alphas] %s',
                      data['surface_alphas'])
-        for name, alpha in data['surface_alphas']:
+        for name, alpha in data['surface_alphas'].iteritems():
             self.parent.canvas_slave.set_surface_alpha(name, alpha)
 
 

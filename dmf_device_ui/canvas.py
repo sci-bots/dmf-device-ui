@@ -181,10 +181,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.widget.add_events(gtk.gdk.KEY_PRESS_MASK |
                                gtk.gdk.KEY_RELEASE_MASK)
         # Create initial (empty) cairo surfaces.
-        self.df_surfaces = pd.DataFrame([[k, self.get_surface(), 1.]
-                                         for k in ('background', 'shapes',
-                                                   'connections', 'routes')],
-                                        columns=['name', 'surface', 'alpha'])
+        surface_names = ('background', 'shapes', 'connections', 'routes')
+        self.df_surfaces = pd.DataFrame([[self.get_surface(), 1.]
+                                         for i in xrange(len(surface_names))],
+                                        columns=['surface', 'alpha'],
+                                        index=pd.Index(surface_names,
+                                                       name='name'))
 
     def reset_canvas(self, width, height):
         from svg_model import compute_shape_centers
@@ -438,14 +440,13 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         return self.render_labels(self.get_labels(), color_rgba=color_rgba)
 
     def set_surface(self, name, surface):
-        self.df_surfaces.loc[self.df_surfaces['name'] == name,
-                             'surface'] = surface
+        self.df_surfaces.loc[name, 'surface'] = surface
         self.emit('surface-rendered', name, surface)
 
     def set_surface_alpha(self, name, alpha):
         if 'alpha' not in self.df_surfaces:
             self.df_surfaces['alpha'] = 1.
-        self.df_surfaces.loc[self.df_surfaces.name == name, 'alpha'] = alpha
+        self.df_surfaces.loc[name, 'alpha'] = alpha
 
     def render(self):
         # Render each layer and update data frame with new content for each
