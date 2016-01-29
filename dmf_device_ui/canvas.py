@@ -181,7 +181,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.widget.add_events(gtk.gdk.KEY_PRESS_MASK |
                                gtk.gdk.KEY_RELEASE_MASK)
         # Create initial (empty) cairo surfaces.
-        surface_names = ('background', 'shapes', 'connections', 'routes')
+        surface_names = ('background', 'shapes', 'connections', 'routes',
+                         'channel_labels')
         self.df_surfaces = pd.DataFrame([[self.get_surface(), 1.]
                                          for i in xrange(len(surface_names))],
                                         columns=['surface', 'alpha'],
@@ -235,6 +236,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.emit('device-set', dmf_device)
 
     def get_labels(self):
+        if self.device is None:
+            return pd.Series(None, index=pd.Index([], name='channel'))
         return (self.electrode_channels.astype(str)
                 .groupby(level='electrode_id', axis=0)
                 .agg(lambda v: ', '.join(v))['channel'])
@@ -448,10 +451,17 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             self.df_surfaces['alpha'] = 1.
         self.df_surfaces.loc[name, 'alpha'] = alpha
 
+    def reorder_surfaces(self, surface_names):
+        assert(len(surface_names) == self.df_surfaces.shape[0])
+        self.df_surfaces = self.df_surfaces.ix[surface_names]
+        self.emit('surfaces-reset', self.df_surfaces)
+        self.cairo_surface = flatten_surfaces(self.df_surfaces)
+
     def render(self):
         # Render each layer and update data frame with new content for each
         # surface.
-        for k in ('background', 'shapes', 'connections', 'routes'):
+        for k in ('background', 'shapes', 'connections', 'routes',
+                  'channel_labels'):
             self.set_surface(k, getattr(self, 'render_' + k)())
         self.emit('surfaces-reset', self.df_surfaces)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)

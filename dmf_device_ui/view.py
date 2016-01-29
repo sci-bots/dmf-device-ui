@@ -243,6 +243,12 @@ class DmfDeviceViewBase(SlaveView):
                                                            .df_surfaces)
         gtk.idle_add(self.canvas_slave.draw)
 
+    def on_layer_alpha_slave__layers_reordered(self, slave, rows_index):
+        reordered_index = self.canvas_slave.df_surfaces.index[rows_index]
+        logger.info('[layers reordered] %s', reordered_index)
+        self.canvas_slave.reorder_surfaces(reordered_index)
+        gtk.idle_add(self.canvas_slave.draw)
+
     ###########################################################################
     # ZeroMQ plugin callbacks
     ###########################################################################
