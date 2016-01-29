@@ -270,6 +270,22 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         if self.callback_id is None:
             self._enabled = True
             self.set_surface('shapes', self.render_shapes())
+
+            # Add layer to which video frames will be rendered.
+            if 'video' in self.df_surfaces.index:
+                self.set_surface('video', self.render_shapes())
+            else:
+                self.df_surfaces.loc['video'] = self.render_shapes(), 1.
+
+            # Reorder layers such that the video layer is directly on top of
+            # the background layer.
+            surfaces_order = self.df_surfaces.index.values.tolist()
+            surfaces_order.remove('video')
+            surfaces_order.insert(surfaces_order.index('background') + 1,
+                                  'video')
+            self.reorder_surfaces(surfaces_order)
+
+            self.render()
             self.callback_id = self.video_sink.connect('frame-update',
                                                        self.on_frame_update)
             self.emit('video-enabled')
@@ -280,6 +296,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             self.set_surface('shapes', self.render_shapes())
             self.video_sink.disconnect(self.callback_id)
             self.callback_id = None
+            if 'video' in self.df_surfaces.index:
+                self.df_surfaces.drop('video', axis=0, inplace=True)
+                self.reorder_surfaces(self.df_surfaces.index)
             self.emit('video-disabled')
         self.on_frame_update(None, None)
 
@@ -449,7 +468,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def set_surface_alpha(self, name, alpha):
         if 'alpha' not in self.df_surfaces:
             self.df_surfaces['alpha'] = 1.
-        self.df_surfaces.loc[name, 'alpha'] = alpha
+        if name in self.df_surfaces.index:
+            self.df_surfaces.loc[name, 'alpha'] = alpha
 
     def reorder_surfaces(self, surface_names):
         assert(len(surface_names) == self.df_surfaces.shape[0])
@@ -717,13 +737,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         if self.widget.window is None:
             return
         if np_frame is None or not self._enabled:
-            cr_warped = cairo.ImageSurface(cairo.FORMAT_RGB24, *self.shape)
-            context = cairo.Context(cr_warped)
-            context.set_source_rgb(0, 0, 0)
-            context.paint()
+            if 'video' in self.df_surfaces.index:
+                self.df_surfaces.drop('video', axis=0, inplace=True)
+                self.reorder_surfaces(self.df_surfaces.index)
         else:
             cr_warped, np_warped_view = np_to_cairo(np_frame)
-        self.set_surface('background', cr_warped)
+            self.set_surface('video', cr_warped)
         refresh_gui(0, 0)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)
         self.draw()
