@@ -48,6 +48,8 @@ class DmfDeviceViewBase(SlaveView):
         self.heartbeat_alive_timestamp = None
         self.route = None
         self.video_config = None
+        self.modify_corners_undo = []
+        self.modify_corners_redo = []
         super(DmfDeviceViewBase, self).__init__()
 
     def __del__(self):
@@ -130,6 +132,8 @@ class DmfDeviceViewBase(SlaveView):
         # Tie shortcuts to protocol controller commands (next, previous, etc.)
         shortcuts = {'<Control>r': lambda *args:
                      control_protocol('run_protocol'),
+                     '<Control>z': lambda *args: self.undo(),
+                     '<Control>y': lambda *args: self.redo(),
                      'A': lambda *args: control_protocol('first_step'),
                      'S': lambda *args: control_protocol('prev_step'),
                      'D': lambda *args: control_protocol('next_step'),
@@ -352,8 +356,46 @@ class DmfDeviceViewBase(SlaveView):
     def on_transform_slave__transform_modify_toggled(self, slave, active):
         if active:
             self.canvas_slave.mode = 'register_video'
+            self.layer_alpha_slave.set_alpha('registration', 1.)
         else:
             self.canvas_slave.mode = 'control'
+            self.layer_alpha_slave.set_alpha('registration', 0.)
+
+    def redo(self):
+        if self.modify_corners_redo and (self.canvas_slave.mode ==
+                                         'register_video'):
+            # Save current state of corners to allow *undo*.
+            corners_state = {'df_frame_corners':
+                             self.canvas_slave.df_frame_corners.copy(),
+                            'df_canvas_corners':
+                             self.canvas_slave.df_canvas_corners.copy()}
+            self.modify_corners_undo.append(corners_state)
+
+            # Apply previous corners state (i.e., redo).
+            corners_state = self.modify_corners_redo.pop()
+            self.canvas_slave.df_frame_corners[:] = (corners_state
+                                                     ['df_frame_corners'])
+            self.canvas_slave.df_canvas_corners[:] = (corners_state
+                                                      ['df_canvas_corners'])
+            self.canvas_slave.update_transforms()
+
+    def undo(self):
+        if self.modify_corners_undo and (self.canvas_slave.mode ==
+                                         'register_video'):
+            # Save current state of corners to allow *redo*.
+            corners_state = {'df_frame_corners':
+                             self.canvas_slave.df_frame_corners.copy(),
+                            'df_canvas_corners':
+                             self.canvas_slave.df_canvas_corners.copy()}
+            self.modify_corners_redo.append(corners_state)
+
+            # Apply previous corners state (i.e., undo).
+            corners_state = self.modify_corners_undo.pop()
+            self.canvas_slave.df_frame_corners[:] = (corners_state
+                                                     ['df_frame_corners'])
+            self.canvas_slave.df_canvas_corners[:] = (corners_state
+                                                      ['df_canvas_corners'])
+            self.canvas_slave.update_transforms()
 
     def on_video_mode_slave__video_config_selected(self, slave, video_config):
         logger.info('video config selected\n%s', video_config)
@@ -413,6 +455,16 @@ class DmfDeviceViewBase(SlaveView):
         frame_corner_i = find_closest(slave.df_frame_corners, frame_point_i)
         # Find the closest corner point in the canvas to the end point.
         canvas_corner_i = find_closest(slave.df_canvas_corners, end_xy)
+
+        # Save current state of corners to allow undo.
+        corners_state = {'df_frame_corners':
+                         self.canvas_slave.df_frame_corners.copy(),
+                         'df_canvas_corners':
+                         self.canvas_slave.df_canvas_corners.copy()}
+        self.modify_corners_undo.append(corners_state)
+        # Clear redo queue to start new undo branch.
+        self.modify_corners_redo = []
+
         # Replace the corresponding corner point coordinates with the
         # respective new points.
         slave.df_frame_corners.iloc[frame_corner_i.name] = frame_point_i
