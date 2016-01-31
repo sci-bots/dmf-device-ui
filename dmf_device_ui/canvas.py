@@ -169,6 +169,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                                       self.df_canvas_corners
                                                       .values)[0]
         self.video_sink.transform = self.frame_to_canvas_map
+        self.set_surface('registration', self.render_registration())
 
     def create_ui(self):
         super(DmfDeviceCanvas, self).create_ui()
@@ -182,7 +183,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                gtk.gdk.KEY_RELEASE_MASK)
         # Create initial (empty) cairo surfaces.
         surface_names = ('background', 'shapes', 'connections', 'routes',
-                         'channel_labels')
+                         'channel_labels', 'registration')
         self.df_surfaces = pd.DataFrame([[self.get_surface(), 1.]
                                          for i in xrange(len(surface_names))],
                                         columns=['surface', 'alpha'],
@@ -461,6 +462,22 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def render_channel_labels(self, color_rgba=None):
         return self.render_labels(self.get_labels(), color_rgba=color_rgba)
 
+    def render_registration(self):
+        '''
+        Render pinned points on video frame as red rectangle.
+        '''
+        points_x = self.df_canvas_corners.x.values
+        points_y = self.df_canvas_corners.y.values
+        surface = self.get_surface()
+        cairo_context = cairo.Context(surface)
+        cairo_context.move_to(points_x[0], points_y[0])
+        for x, y in zip(points_x[1:], points_y[1:]):
+            cairo_context.line_to(x, y)
+        cairo_context.line_to(points_x[0], points_y[0])
+        cairo_context.set_source_rgb(1, 0, 0)
+        cairo_context.stroke()
+        return surface
+
     def set_surface(self, name, surface):
         self.df_surfaces.loc[name, 'surface'] = surface
         self.emit('surface-rendered', name, surface)
@@ -481,7 +498,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         # Render each layer and update data frame with new content for each
         # surface.
         for k in ('background', 'shapes', 'connections', 'routes',
-                  'channel_labels'):
+                  'channel_labels', 'registration'):
             self.set_surface(k, getattr(self, 'render_' + k)())
         self.emit('surfaces-reset', self.df_surfaces)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)
