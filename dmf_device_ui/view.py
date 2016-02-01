@@ -454,7 +454,7 @@ class DmfDeviceViewBase(SlaveView):
         # Find the closest corner point in the frame to the starting point.
         frame_corner_i = find_closest(slave.df_frame_corners, frame_point_i)
         # Find the closest corner point in the canvas to the end point.
-        canvas_corner_i = find_closest(slave.df_canvas_corners, end_xy)
+        canvas_corner_i = find_closest(slave.df_canvas_corners, start_xy)
 
         # Save current state of corners to allow undo.
         corners_state = {'df_frame_corners':
