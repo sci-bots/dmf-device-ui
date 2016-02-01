@@ -405,6 +405,8 @@ class DmfDeviceViewBase(SlaveView):
         self.video_config = video_config
         if video_config is None:
             self.canvas_slave.disable()
+            # Hide registration layer (if visible).
+            self.layer_alpha_slave.set_alpha('registration', 0.)
             self.cleanup_video()
             return
 
