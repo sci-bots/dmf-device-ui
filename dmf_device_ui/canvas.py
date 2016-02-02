@@ -760,6 +760,5 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         else:
             cr_warped, np_warped_view = np_to_cairo(np_frame)
             self.set_surface('video', cr_warped)
-        refresh_gui(0, 0)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)
         self.draw()

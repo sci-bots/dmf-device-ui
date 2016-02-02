@@ -266,7 +266,7 @@ class DmfDeviceViewBase(SlaveView):
         if self.plugin is not None:
             try:
                 self.plugin.execute(self.plugin.hub_name, 'ping', timeout_s=1,
-                                    wait_func=gtk_wait, silent=True)
+                                    silent=True)
             except IOError:
                 self.on_heartbeat_error()
             else:
@@ -286,10 +286,9 @@ class DmfDeviceViewBase(SlaveView):
         self.plugin.execute_async('wheelerlab.device_info_plugin',
                                   'get_device')
         # Periodically process outstanding plugin socket messages.
-        self.socket_timeout_id = gobject.timeout_add(10,
-                                                     self.plugin.check_sockets)
-        # Periodically ping hub to verify connection is alive.
-        self.heartbeat_timeout_id = gobject.timeout_add(2000, self.ping_hub)
+        self.socket_timeout_id = gtk.timeout_add(10, self.plugin.check_sockets)
+        ## Periodically ping hub to verify connection is alive.
+        self.heartbeat_timeout_id = gtk.timeout_add(2000, self.ping_hub)
 
     def on_device_loaded(self, device):
         self.canvas_slave.set_device(device)
