@@ -1,8 +1,10 @@
+include README.md
 include LICENSE
 include RELEASE-VERSION
 include version.py
 include setup.py
 include paver-minilib.zip
+recursive-include docs *
 recursive-include dmf_device_ui *
 recursive-exclude dmf_device_ui *.pyc
 recursive-exclude dmf_device_ui *~
