@@ -13,7 +13,7 @@ install_distutils_tasks()
 install_requires = ['microdrop-utility>=0.4', 'networkx>=1.10', 'pandas',
                     'path-helpers>=0.2', 'svg_model>=0.5.post14',
                     'pygst-utils>=0.2.post22',
-                    'wheeler.pygtkhelpers>=0.11.post18', 'zmq-plugin>=0.2']
+                    'wheeler.pygtkhelpers>=0.12', 'zmq-plugin>=0.2']
 
 # Platform-specific package requirements.
 if platform.system() == 'Windows':
