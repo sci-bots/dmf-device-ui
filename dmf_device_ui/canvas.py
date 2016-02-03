@@ -233,7 +233,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.reset_states()
         x, y, width, height = self.widget.get_allocation()
         if width > 0 and height > 0:
-            gtk.idle_add(self.on_canvas_reset_tick, (width, height))
+            self._dirty_size = width, height
         self.emit('device-set', dmf_device)
 
     def get_labels(self):
@@ -305,13 +305,15 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     ###########################################################################
     # ## Drawing area event handling ##
-    def on_widget__configure_event(self, widget, event):
-        '''
-        Handle resize of Cairo drawing area.
-        '''
-        super(DmfDeviceCanvas, self).on_widget__configure_event(widget, event)
+    def check_dirty(self):
+        if self._dirty_size is not None:
+            width, height = self._dirty_size
+            logger.info('[dmf-device-ui] %sx%s', width, height)
+            self.set_shape(width, height)
+        return super(DmfDeviceCanvas, self).check_dirty()
+
+    def set_shape(self, width, height):
         # Set new target size for scaled frames from video sink.
-        width, height = event.width, event.height
         self.shape = width, height
         self.video_sink.shape = width, height
         self.reset_canvas_corners()
@@ -388,9 +390,13 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     def render_shapes(self, df_shapes=None, clip=False):
         surface = self.get_surface()
-        cairo_context = cairo.Context(surface)
         if df_shapes is None:
-            df_shapes = self.canvas.df_canvas_shapes
+            if hasattr(self.canvas, 'df_canvas_shapes'):
+                df_shapes = self.canvas.df_canvas_shapes
+            else:
+                return surface
+
+        cairo_context = cairo.Context(surface)
 
         for path_id, df_path_i in (df_shapes
                                    .groupby(self.canvas
@@ -466,9 +472,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         '''
         Render pinned points on video frame as red rectangle.
         '''
+        surface = self.get_surface()
+        if self.df_canvas_corners.shape[0] <= 0:
+            return surface
+
         points_x = self.df_canvas_corners.x.values
         points_y = self.df_canvas_corners.y.values
-        surface = self.get_surface()
         cairo_context = cairo.Context(surface)
         cairo_context.move_to(points_x[0], points_y[0])
         for x, y in zip(points_x[1:], points_y[1:]):
@@ -760,6 +769,5 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         else:
             cr_warped, np_warped_view = np_to_cairo(np_frame)
             self.set_surface('video', cr_warped)
-        refresh_gui(0, 0)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)
         self.draw()

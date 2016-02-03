@@ -5,7 +5,7 @@ import logging
 import platform
 import sys
 
-from cairo_helpers.surface import flatten_surfaces, np_cairo_view
+from cairo_helpers.surface import flatten_surfaces
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
 from pygtkhelpers.ui.views import find_closest
@@ -21,7 +21,7 @@ import zmq
 
 from .options import DeviceViewInfo, DebugView
 from .plugin import DevicePluginConnection, DevicePlugin
-from . import gtk_wait, generate_plugin_name
+from . import generate_plugin_name
 
 logger = logging.getLogger(__name__)
 
@@ -173,11 +173,10 @@ class DmfDeviceViewBase(SlaveView):
         if self.plugin is None:
             return
         state = self.canvas_slave.electrode_states.get(data['electrode_id'], 0)
-        self.plugin.execute('wheelerlab.electrode_controller_plugin',
-                            'set_electrode_states',
-                            electrode_states=
-                            pd.Series([not state],
-                                      index=[data['electrode_id']]))
+        self.plugin.execute_async('wheelerlab.electrode_controller_plugin',
+                                  'set_electrode_states', electrode_states=
+                                  pd.Series([not state],
+                                            index=[data['electrode_id']]))
 
     def on_canvas_slave__electrode_pair_selected(self, slave, data):
         '''
@@ -266,7 +265,7 @@ class DmfDeviceViewBase(SlaveView):
         if self.plugin is not None:
             try:
                 self.plugin.execute(self.plugin.hub_name, 'ping', timeout_s=1,
-                                    wait_func=gtk_wait, silent=True)
+                                    silent=True)
             except IOError:
                 self.on_heartbeat_error()
             else:
@@ -286,10 +285,9 @@ class DmfDeviceViewBase(SlaveView):
         self.plugin.execute_async('wheelerlab.device_info_plugin',
                                   'get_device')
         # Periodically process outstanding plugin socket messages.
-        self.socket_timeout_id = gobject.timeout_add(10,
-                                                     self.plugin.check_sockets)
-        # Periodically ping hub to verify connection is alive.
-        self.heartbeat_timeout_id = gobject.timeout_add(2000, self.ping_hub)
+        self.socket_timeout_id = gtk.timeout_add(25, self.plugin.check_sockets)
+        ## Periodically ping hub to verify connection is alive.
+        self.heartbeat_timeout_id = gtk.timeout_add(2000, self.ping_hub)
 
     def on_device_loaded(self, device):
         self.canvas_slave.set_device(device)
@@ -405,6 +403,8 @@ class DmfDeviceViewBase(SlaveView):
         self.video_config = video_config
         if video_config is None:
             self.canvas_slave.disable()
+            # Hide registration layer (if visible).
+            self.layer_alpha_slave.set_alpha('registration', 0.)
             self.cleanup_video()
             return
 
@@ -454,7 +454,7 @@ class DmfDeviceViewBase(SlaveView):
         # Find the closest corner point in the frame to the starting point.
         frame_corner_i = find_closest(slave.df_frame_corners, frame_point_i)
         # Find the closest corner point in the canvas to the end point.
-        canvas_corner_i = find_closest(slave.df_canvas_corners, end_xy)
+        canvas_corner_i = find_closest(slave.df_canvas_corners, start_xy)
 
         # Save current state of corners to allow undo.
         corners_state = {'df_frame_corners':
