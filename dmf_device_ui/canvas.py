@@ -390,9 +390,13 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     def render_shapes(self, df_shapes=None, clip=False):
         surface = self.get_surface()
-        cairo_context = cairo.Context(surface)
         if df_shapes is None:
-            df_shapes = self.canvas.df_canvas_shapes
+            if hasattr(self.canvas, 'df_canvas_shapes'):
+                df_shapes = self.canvas.df_canvas_shapes
+            else:
+                return surface
+
+        cairo_context = cairo.Context(surface)
 
         for path_id, df_path_i in (df_shapes
                                    .groupby(self.canvas
