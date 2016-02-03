@@ -5,7 +5,7 @@ import logging
 import platform
 import sys
 
-from cairo_helpers.surface import flatten_surfaces, np_cairo_view
+from cairo_helpers.surface import flatten_surfaces
 from microdrop_utility.gui import register_shortcuts
 from pygtkhelpers.delegates import SlaveView
 from pygtkhelpers.ui.views import find_closest
@@ -21,7 +21,7 @@ import zmq
 
 from .options import DeviceViewInfo, DebugView
 from .plugin import DevicePluginConnection, DevicePlugin
-from . import gtk_wait, generate_plugin_name
+from . import generate_plugin_name
 
 logger = logging.getLogger(__name__)
 
