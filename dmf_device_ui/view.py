@@ -173,11 +173,10 @@ class DmfDeviceViewBase(SlaveView):
         if self.plugin is None:
             return
         state = self.canvas_slave.electrode_states.get(data['electrode_id'], 0)
-        self.plugin.execute('wheelerlab.electrode_controller_plugin',
-                            'set_electrode_states',
-                            electrode_states=
-                            pd.Series([not state],
-                                      index=[data['electrode_id']]))
+        self.plugin.execute_async('wheelerlab.electrode_controller_plugin',
+                                  'set_electrode_states', electrode_states=
+                                  pd.Series([not state],
+                                            index=[data['electrode_id']]))
 
     def on_canvas_slave__electrode_pair_selected(self, slave, data):
         '''
