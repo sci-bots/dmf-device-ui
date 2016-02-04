@@ -133,22 +133,22 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def reset_canvas_corners(self):
         self.df_canvas_corners = (self.default_corners
                                   .get('canvas',
-                                       self.default_canvas_corners()))
+                                       self.default_shapes_corners()))
 
     def reset_frame_corners(self):
         self.df_frame_corners = (self.default_corners
                                  .get('frame', self.default_frame_corners()))
 
-    def default_canvas_corners(self):
-        if self.shape is None:
-            return
-        width, height = self.shape
+    def default_shapes_corners(self):
+        if self.canvas is None:
+            return self.df_canvas_corners
+        width, height = self.canvas.source_shape
         return pd.DataFrame([[0, 0], [width, 0], [width, height], [0, height]],
                             columns=['x', 'y'], dtype=float)
 
     def default_frame_corners(self):
         if self.video_sink.frame_shape is None:
-            return
+            return self.df_frame_corners
         width, height = self.video_sink.frame_shape
         return pd.DataFrame([[0, 0], [width, 0], [width, height], [0, height]],
                             columns=['x', 'y'], dtype=float)
@@ -156,8 +156,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def update_transforms(self):
         import cv2
 
-        if (self.df_canvas_corners.shape[0] <= 0 or
-            self.df_frame_corners.shape[0] <= 0):
+        if (self.df_canvas_corners.shape[0] == 0 or
+            self.df_frame_corners.shape[0] == 0):
             return
 
         self.canvas_to_frame_map = cv2.findHomography(self.df_canvas_corners
@@ -168,7 +168,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                                       .values,
                                                       self.df_canvas_corners
                                                       .values)[0]
-        self.video_sink.transform = self.frame_to_canvas_map
+
+        # Translate transform shape coordinate space to drawing area coordinate
+        # space.
+        transform = self.frame_to_canvas_map
+        if self.canvas is not None:
+            transform = (self.canvas.shapes_to_canvas_transform.values
+                         .dot(transform))
+        self.video_sink.transform = transform
         self.set_surface('registration', self.render_registration())
 
     def create_ui(self):
@@ -309,15 +316,21 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def check_dirty(self):
         if self._dirty_size is not None:
             width, height = self._dirty_size
-            logger.info('[dmf-device-ui] %sx%s', width, height)
             self.set_shape(width, height)
-        return super(DmfDeviceCanvas, self).check_dirty()
+            transform_update_required = True
+        else:
+            transform_update_required = False
+        result = super(DmfDeviceCanvas, self).check_dirty()
+        if transform_update_required:
+            gtk.idle_add(self.update_transforms)
+        return result
 
     def set_shape(self, width, height):
-        # Set new target size for scaled frames from video sink.
+        logger.debug('[set_shape]: Set drawing area shape to %sx%s', width,
+                     height)
         self.shape = width, height
+        # Set new target size for scaled frames from video sink.
         self.video_sink.shape = width, height
-        self.reset_canvas_corners()
         self.update_transforms()
         if not self._enabled:
             gtk.idle_add(self.on_frame_update, None, None)
@@ -474,11 +487,18 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Render pinned points on video frame as red rectangle.
         '''
         surface = self.get_surface()
-        if self.df_canvas_corners.shape[0] <= 0:
+        if self.canvas is None or self.df_canvas_corners.shape[0] == 0:
             return surface
 
-        points_x = self.df_canvas_corners.x.values
-        points_y = self.df_canvas_corners.y.values
+        corners = self.df_canvas_corners.copy()
+        corners['w'] = 1
+
+        transform = self.canvas.shapes_to_canvas_transform
+        canvas_corners = corners.values.dot(transform.T.values).T
+
+        points_x = canvas_corners[0]
+        points_y = canvas_corners[1]
+
         cairo_context = cairo.Context(surface)
         cairo_context.move_to(points_x[0], points_y[0])
         for x, y in zip(points_x[1:], points_y[1:]):
@@ -691,7 +711,13 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         '''
         Called when mouse pointer is moved within drawing area.
         '''
-        shape = self.canvas.find_shape(event.x, event.y)
+        if event.is_hint:
+            pointer = event.window.get_pointer()
+            x, y, mod_type = pointer
+        else:
+            x = event.x
+            y = event.y
+        shape = self.canvas.find_shape(x, y)
 
         # Grab focus to [enable notification on key press/release events][1].
         #

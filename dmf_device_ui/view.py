@@ -440,21 +440,25 @@ class DmfDeviceViewBase(SlaveView):
         self.video_info_slave.dropped_rate = dropped_rate
 
     def on_canvas_slave__point_pair_selected(self, slave, data):
-        if not self.transform_slave.modify or not self.canvas_slave.enabled:
+        if (slave.canvas is None or not self.transform_slave.modify or
+            not slave.enabled):
             return
-        start_xy = [getattr(data['start_event'], k) for k in 'xy']
-        end_xy = [getattr(data['end_event'], k) for k in 'xy']
-        logger.debug('[View] point pair selected: %s, %s', start_xy, end_xy)
+        # Translate canvas event coordinates to shape coordinate space.
+        transform = slave.canvas.canvas_to_shapes_transform
+        shape_start_xy = transform.dot([data['start_event'].x,
+                                        data['start_event'].y, 1.])[:2]
+        shape_end_xy = transform.dot([data['end_event'].x, data['end_event'].y,
+                                      1.])[:2]
 
         slave = self.canvas_slave
         # Map GTK event x/y coordinates to the video frame coordinate space.
         frame_point_i = \
-            cv2.perspectiveTransform(np.array([[start_xy]], dtype=float),
+            cv2.perspectiveTransform(np.array([[shape_start_xy]], dtype=float),
                                      slave.canvas_to_frame_map).ravel()
         # Find the closest corner point in the frame to the starting point.
         frame_corner_i = find_closest(slave.df_frame_corners, frame_point_i)
         # Find the closest corner point in the canvas to the end point.
-        canvas_corner_i = find_closest(slave.df_canvas_corners, start_xy)
+        canvas_corner_i = find_closest(slave.df_canvas_corners, shape_start_xy)
 
         # Save current state of corners to allow undo.
         corners_state = {'df_frame_corners':
@@ -468,7 +472,7 @@ class DmfDeviceViewBase(SlaveView):
         # Replace the corresponding corner point coordinates with the
         # respective new points.
         slave.df_frame_corners.iloc[frame_corner_i.name] = frame_point_i
-        slave.df_canvas_corners.iloc[canvas_corner_i.name] = end_xy
+        slave.df_canvas_corners.iloc[canvas_corner_i.name] = shape_end_xy
         slave.update_transforms()
 
     def on_canvas_slave__video_disabled(self, slave):
