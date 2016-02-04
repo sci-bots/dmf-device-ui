@@ -194,7 +194,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         from svg_model import compute_shape_centers
 
         super(DmfDeviceCanvas, self).reset_canvas(width, height)
-        if self.device is None:
+        if self.device is None or self.canvas.df_canvas_shapes.shape[0] == 0:
             return
 
         self.canvas.df_canvas_shapes =\
@@ -233,6 +233,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.reset_states()
         x, y, width, height = self.widget.get_allocation()
         if width > 0 and height > 0:
+            self.canvas = None
             self._dirty_size = width, height
         self.emit('device-set', dmf_device)
 
