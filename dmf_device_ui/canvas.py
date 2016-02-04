@@ -797,4 +797,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             cr_warped, np_warped_view = np_to_cairo(np_frame)
             self.set_surface('video', cr_warped)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)
+        # Execute a few gtk main loop iterations to improve responsiveness when
+        # using high video frame rates.
+        #
+        # N.B., Without doing this, for example, some mouse over events may be
+        # missed, leading to problems drawing routes, etc.
+        for i in xrange(5):
+            if not gtk.events_pending():
+                break
+            gtk.main_iteration_do()
+
         self.draw()
