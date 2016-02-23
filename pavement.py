@@ -10,7 +10,8 @@ import version
 install_distutils_tasks()
 
 # Platform-independent package requirements.
-install_requires = ['microdrop-utility>=0.4', 'networkx>=1.10', 'pandas',
+install_requires = ['microdrop>=2.0.post22.dev158803465',
+                    'microdrop-utility>=0.4', 'networkx>=1.10', 'pandas',
                     'path-helpers>=0.2', 'pygst-utils>=0.2.post23',
                     'wheeler.pygtkhelpers>=0.12.post4', 'zmq-plugin>=0.2']
 
