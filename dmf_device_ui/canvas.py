@@ -30,7 +30,7 @@ class Route(object):
 
         if not self.electrode_ids:
             do_append = True
-        else:
+        elif self.device.shape_indexes.shape[0] > 0:
             source = self.electrode_ids[-1]
             target = electrode_id
             source_id, target_id = self.device.shape_indexes[[source, target]]
