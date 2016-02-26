@@ -2,7 +2,6 @@
 from datetime import datetime
 from subprocess import Popen
 import logging
-import platform
 import sys
 
 from cairo_helpers.surface import flatten_surfaces
@@ -408,17 +407,6 @@ class DmfDeviceViewBase(SlaveView):
             self.cleanup_video()
             return
 
-        caps_str = ('video/x-raw-rgb,width={width:d},height={height:d},'
-                    'format=RGB,'
-                    'framerate={framerate_num:d}/{framerate_denom:d}'
-                    .format(**video_config))
-        if platform.system() == 'Windows':
-            device_str = 'dshowvideosrc device-name="%s"' % video_config.device
-        elif platform.system() == 'Linux':
-            device_str = 'v4l2src device="%s"' % video_config.device
-        logging.info('[View] video config device string: %s', device_str)
-        logging.info('[View] video config caps string: %s', caps_str)
-
         py_exe = sys.executable
         port = self.canvas_slave.video_sink.socket_info['port']
         transport = self.canvas_slave.video_sink.socket_info['transport']
@@ -427,10 +415,12 @@ class DmfDeviceViewBase(SlaveView):
 
         # Terminate existing process (if running).
         self.cleanup_video()
-        video_command = (device_str + ' ! ffmpegcolorspace ! ' + caps_str +
-                         ' ! appsink name=app-video emit-signals=true')
-        command = [py_exe, '-m', 'pygst_utils.video_view.video_source', '-p',
-                   str(port), transport, host, video_command]
+
+        # Launch new video source process using JSON serialized video
+        # configuration.
+        command = [py_exe, '-m', 'pygst_utils.video_view.video_source',
+                   'fromjson', '-p', str(port), transport, host,
+                   video_config.to_json()]
         logger.info(' '.join(command))
         self.video_source_process = Popen(command)
         self.canvas_slave.enable()

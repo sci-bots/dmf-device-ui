@@ -130,7 +130,7 @@ class DevicePlugin(Plugin):
 
     def on_execute__set_video_config(self, request):
         data = decode_content_data(request)
-        compare_fields = ['device', 'width', 'height', 'name', 'fourcc',
+        compare_fields = ['device_name', 'width', 'height', 'name', 'fourcc',
                           'framerate']
         if data['video_config'] is None:
             i = None
