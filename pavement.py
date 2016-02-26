@@ -12,7 +12,7 @@ install_distutils_tasks()
 # Platform-independent package requirements.
 install_requires = ['microdrop>=2.0.post22.dev158803465',
                     'microdrop-utility>=0.4', 'networkx>=1.10', 'pandas',
-                    'path-helpers>=0.2', 'pygst-utils>=0.3.post1',
+                    'path-helpers>=0.2', 'pygst-utils>=0.3.post2',
                     'wheeler.pygtkhelpers>=0.12.post4', 'zmq-plugin>=0.2']
 
 # Platform-specific package requirements.
