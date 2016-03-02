@@ -68,6 +68,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('electrode-mouseover', object)
     gsignal('electrode-pair-selected', object)
     gsignal('electrode-selected', object)
+    gsignal('electrode-command', str, str, object)
     gsignal('key-press', object)
     gsignal('key-release', object)
     gsignal('route-electrode-added', object)
@@ -127,6 +128,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         self.default_corners = {}  # {'canvas': None, 'frame': None}
 
+        # Registered electrode commands
+        self.electrode_commands = OrderedDict()
+        # Register test command
+        #self.register_electrode_command('ping',
+                                        #group='wheelerlab.device_info_plugin')
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
                                               **kwargs)
 
@@ -632,6 +638,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         '''
         Called when any mouse button is released.
         '''
+        event = event.copy()
         if self.mode == 'register_video' and (event.button == 1 and
                                               self.start_event is not None):
             self.emit('point-pair-selected', {'start_event': self.start_event,
@@ -643,14 +650,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
             if shape is None: return
 
+            electrode_data = {'electrode_id': shape, 'event': event.copy()}
             if event.button == 1:
                 if gtk.gdk.BUTTON1_MASK == event.get_state():
                     if self._route.append(shape):
                         self.emit('route-electrode-added', shape)
                     if len(self._route.electrode_ids) == 1:
                         # Single electrode, so select electrode.
-                        self.emit('electrode-selected', {'electrode_id': shape,
-                                                        'event': event.copy()})
+                        self.emit('electrode-selected', electrode_data)
                     else:
                         # Multiple electrodes, so select route.
                         route = self._route
@@ -703,6 +710,39 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                              menu_execute_routes, menu_execute_all_routes):
                     menu.append(item)
                     item.show()
+
+                # Add menu items/groups for registered electrode commands.
+                if self.electrode_commands:
+                    separator = gtk.SeparatorMenuItem()
+                    menu.append(separator)
+
+                for group, commands in self.electrode_commands.iteritems():
+                    if group is None:
+                        menu_i = menu
+                    else:
+                        # Add sub-menu for group.
+                        menu_i = gtk.Menu()
+                        menu_head_i = gtk.MenuItem(group)
+                        menu_head_i.set_submenu(menu_i)
+                        menu_head_i.set_use_underline(False)
+                        menu.append(menu_head_i)
+                    for command, title in commands.iteritems():
+                        menu_item_j = gtk.MenuItem(title)
+                        menu_i.append(menu_item_j)
+
+                        def callback(group, command, electrode_data):
+                            # Closure for `callback` function to persist
+                            # current values `group, command, title` in
+                            # callback.
+                            def wrapped(widget):
+                                gtk.idle_add(self.emit, 'electrode-command',
+                                             group, command, electrode_data)
+                            return wrapped
+                        menu_item_j.connect('activate',
+                                            callback(group, command,
+                                                     electrode_data))
+
+                menu.show_all()
 
                 # Make menu popup
                 menu.popup(None, None, None, event.button, event.time)
@@ -808,3 +848,15 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             gtk.main_iteration_do()
 
         self.draw()
+    ###########################################################################
+    # ## Electrode operation registration ##
+    def register_electrode_command(self, command, title=None, group=None):
+        '''
+        Register electrode command.
+
+        Add electrode plugin command to context menu.
+        '''
+        commands = self.electrode_commands.setdefault(group, OrderedDict())
+        if title is None:
+            title = (command[:1].upper() + command[1:]).replace('_', ' ')
+        commands[command] = title

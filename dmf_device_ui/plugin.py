@@ -163,6 +163,26 @@ class DevicePlugin(Plugin):
         for name, alpha in data['surface_alphas'].iteritems():
             self.parent.canvas_slave.set_surface_alpha(name, alpha)
 
+    def on_execute__clear_electrode_commands(self, request):
+        data = decode_content_data(request)
+        logger.info('[clear_electrode_commands] %s', data)
+        if 'plugin_name' in data and (data['plugin_name'] in
+                                      self.parent.canvas_slave
+                                      .electrode_commands):
+            del (self.parent.canvas_slave
+                 .electrode_commands[data['plugin_name']])
+        else:
+            self.parent.canvas_slave.electrode_commands.clear()
+
+    def on_execute__register_electrode_command(self, request):
+        data = decode_content_data(request)
+        logger.info('[register_electrode_command] %s', data)
+        plugin_name = data.get('plugin_name', request['header']['source'])
+        self.parent.canvas_slave.register_electrode_command(data['command'],
+                                                            group=plugin_name,
+                                                            title=data
+                                                            .get('title'))
+
 
 class PluginConnection(SlaveView):
     gsignal('plugin-connected', object)
