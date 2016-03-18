@@ -11,6 +11,7 @@ from pygtkhelpers.ui.views import find_closest
 from pygtkhelpers.ui.views.surface import LayerAlphaController
 from pygst_utils.video_view.mode import VideoModeSelector
 from pygst_utils.video_view.video_sink import Transform, VideoInfo
+from zmq_plugin.schema import decode_content_data
 import cv2
 import gobject
 import gtk
@@ -470,6 +471,37 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_canvas_slave__video_enabled(self, slave):
         self.transform_slave.widget.set_sensitive(True)
+
+    def on_canvas_slave__electrode_command(self, slave, group, command,
+                                           electrode_data):
+        def command_callback(reply):
+            logger.info('[on_canvas_slave__electrode_command] %s.%s(%r)',
+                        group, command, electrode_data['electrode_id'])
+            # Decode content to raise error, if necessary.
+            try:
+                decode_content_data(reply)
+            except:
+                logger.error('Electrode command error: %s.%s(%r)', group,
+                             command, electrode_data['electrode_id'],
+                             exc_info=True)
+        self.plugin.execute_async(group, command,
+                                  electrode_id=electrode_data['electrode_id'],
+                                  callback=command_callback)
+
+    def on_canvas_slave__route_command(self, slave, group, command,
+                                       route_data):
+        def command_callback(reply):
+            logger.info('[on_canvas_slave__route_command] %s.%s(%r)', group,
+                        command, route_data['route_ids'])
+            # Decode content to raise error, if necessary.
+            try:
+                decode_content_data(reply)
+            except:
+                logger.error('Route command error: %s.%s(%r)', group, command,
+                             route_data['route_ids'], exc_info=True)
+        self.plugin.execute_async(group, command,
+                                  route_ids=route_data['route_ids'],
+                                  callback=command_callback)
 
 
 class DmfDeviceFixedHubView(DmfDeviceViewBase):
