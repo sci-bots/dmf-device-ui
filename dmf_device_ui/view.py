@@ -477,6 +477,13 @@ class DmfDeviceViewBase(SlaveView):
         def command_callback(reply):
             logger.info('[on_canvas_slave__electrode_command] %s.%s(%r)',
                         group, command, electrode_data['electrode_id'])
+            # Decode content to raise error, if necessary.
+            try:
+                decode_content_data(reply)
+            except:
+                logger.error('Electrode command error: %s.%s(%r)', group,
+                             command, electrode_data['electrode_id'],
+                             exc_info=True)
         self.plugin.execute_async(group, command,
                                   electrode_id=electrode_data['electrode_id'],
                                   callback=command_callback)
