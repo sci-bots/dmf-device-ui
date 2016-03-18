@@ -14,7 +14,7 @@ install_requires = ['microdrop>=2.0.post22.dev158803465',
                     'microdrop-utility>=0.4', 'networkx>=1.10', 'pandas',
                     'path-helpers>=0.2', 'pygst-utils>=0.3.post2',
                     'wheeler.pygtkhelpers>=0.12.post4',
-                    'zmq-plugin>=0.2.post1']
+                    'zmq-plugin>=0.2.post2']
 
 # Platform-specific package requirements.
 if platform.system() == 'Windows':

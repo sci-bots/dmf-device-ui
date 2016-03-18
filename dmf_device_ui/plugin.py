@@ -128,6 +128,12 @@ class DevicePlugin(Plugin):
     def on_execute__get_video_config(self, request):
         return self.parent.video_config
 
+    def on_execute__enable_video(self, request):
+        self.parent.enable_video()
+
+    def on_execute__disable_video(self, request):
+        self.parent.disable_video()
+
     def on_execute__set_video_config(self, request):
         data = decode_content_data(request)
         compare_fields = ['device_name', 'width', 'height', 'name', 'fourcc',
