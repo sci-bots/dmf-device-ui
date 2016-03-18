@@ -62,15 +62,16 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     '''
     gsignal('clear-electrode-states')
     gsignal('clear-routes', object)
-    gsignal('execute-routes', object)
     gsignal('device-set', object)
+    gsignal('electrode-command', str, str, object)
     gsignal('electrode-mouseout', object)
     gsignal('electrode-mouseover', object)
     gsignal('electrode-pair-selected', object)
     gsignal('electrode-selected', object)
-    gsignal('electrode-command', str, str, object)
+    gsignal('execute-routes', object)
     gsignal('key-press', object)
     gsignal('key-release', object)
+    gsignal('route-command', str, str, object)
     gsignal('route-electrode-added', object)
     gsignal('route-selected', object)
     gsignal('surface-rendered', str, object)
@@ -133,6 +134,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         # Register test command
         #self.register_electrode_command('ping',
                                         #group='wheelerlab.device_info_plugin')
+        # Registered route commands
+        self.route_commands = OrderedDict()
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
                                               **kwargs)
 
@@ -672,80 +675,130 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                             'event': event.copy()})
                 self.last_pressed = None
             elif event.button == 3:
-                # Right-click pop-up menu.
-                def clear_electrode_states(widget):
-                    self.emit('clear-electrode-states')
+                # Create right-click pop-up menu.
+                menu = self.create_context_menu(event, shape)
 
-                def clear_routes(widget):
-                    self.emit('clear-routes', shape)
-
-                def clear_all_routes(widget):
-                    self.emit('clear-routes', None)
-
-                def execute_routes(widget):
-                    self.emit('execute-routes', shape)
-
-                def execute_all_routes(widget):
-                    self.emit('execute-routes', None)
-
-                menu = gtk.Menu()
-                menu_separator = gtk.SeparatorMenuItem()
-                menu_clear_electrode_states = gtk.MenuItem('Clear all '
-                                                           'electrode states')
-                menu_clear_electrode_states.connect('activate',
-                                                    clear_electrode_states)
-                menu_clear_routes = gtk.MenuItem('Clear electrode routes')
-                menu_clear_routes.connect('activate', clear_routes)
-                menu_clear_all_routes = gtk.MenuItem('Clear all electrode '
-                                                     'routes')
-                menu_clear_all_routes.connect('activate', clear_all_routes)
-                menu_execute_routes = gtk.MenuItem('Execute electrode routes')
-                menu_execute_routes.connect('activate', execute_routes)
-                menu_execute_all_routes = gtk.MenuItem('Execute all electrode '
-                                                       'routes')
-                menu_execute_all_routes.connect('activate', execute_all_routes)
-
-                for item in (menu_clear_electrode_states, menu_separator,
-                             menu_clear_routes, menu_clear_all_routes,
-                             menu_execute_routes, menu_execute_all_routes):
-                    menu.append(item)
-                    item.show()
-
-                # Add menu items/groups for registered electrode commands.
-                if self.electrode_commands:
-                    separator = gtk.SeparatorMenuItem()
-                    menu.append(separator)
-
-                for group, commands in self.electrode_commands.iteritems():
-                    if group is None:
-                        menu_i = menu
-                    else:
-                        # Add sub-menu for group.
-                        menu_i = gtk.Menu()
-                        menu_head_i = gtk.MenuItem(group)
-                        menu_head_i.set_submenu(menu_i)
-                        menu_head_i.set_use_underline(False)
-                        menu.append(menu_head_i)
-                    for command, title in commands.iteritems():
-                        menu_item_j = gtk.MenuItem(title)
-                        menu_i.append(menu_item_j)
-
-                        def callback(group, command, electrode_data):
-                            # Closure for `callback` function to persist
-                            # current values `group, command, title` in
-                            # callback.
-                            def wrapped(widget):
-                                gtk.idle_add(self.emit, 'electrode-command',
-                                             group, command, electrode_data)
-                            return wrapped
-                        menu_item_j.connect('activate',
-                                            callback(group, command,
-                                                     electrode_data))
-
-                menu.show_all()
-
-                # Make menu popup
+                # Display menu popup
                 menu.popup(None, None, None, event.button, event.time)
+
+    def create_context_menu(self, event, shape):
+        routes = self.df_routes.loc[self.df_routes.electrode_i == shape,
+                                    'route_i'].astype(int).unique().tolist()
+
+        def clear_electrode_states(widget):
+            self.emit('clear-electrode-states')
+
+        def clear_routes(widget):
+            self.emit('clear-routes', shape)
+
+        def clear_all_routes(widget):
+            self.emit('clear-routes', None)
+
+        def execute_routes(widget):
+            self.emit('execute-routes', shape)
+
+        def execute_all_routes(widget):
+            self.emit('execute-routes', None)
+
+        menu = gtk.Menu()
+        menu_separator = gtk.SeparatorMenuItem()
+        menu_clear_electrode_states = gtk.MenuItem('Clear all electrode '
+                                                   'states')
+        menu_clear_electrode_states.connect('activate', clear_electrode_states)
+        menu_clear_routes = gtk.MenuItem('Clear electrode routes')
+        menu_clear_routes.connect('activate', clear_routes)
+        menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
+        menu_clear_all_routes.connect('activate', clear_all_routes)
+        menu_execute_routes = gtk.MenuItem('Execute electrode routes')
+        menu_execute_routes.connect('activate', execute_routes)
+        menu_execute_all_routes = gtk.MenuItem('Execute all electrode '
+                                               'routes')
+        menu_execute_all_routes.connect('activate', execute_all_routes)
+
+        for item in (menu_clear_electrode_states, menu_separator,
+                        menu_clear_routes, menu_clear_all_routes,
+                        menu_execute_routes, menu_execute_all_routes):
+            menu.append(item)
+            item.show()
+
+        # Add menu items/groups for registered electrode commands.
+        if self.electrode_commands:
+            separator = gtk.SeparatorMenuItem()
+            menu.append(separator)
+
+            # Add electrode sub-menu.
+            menu_e = gtk.Menu()
+            menu_head_e = gtk.MenuItem('Electrode')
+            menu_head_e.set_submenu(menu_e)
+            menu_head_e.set_use_underline(False)
+            menu.append(menu_head_e)
+
+            electrode_data = {'electrode_id': shape, 'event': event.copy()}
+            for group, commands in self.electrode_commands.iteritems():
+                if group is None:
+                    menu_i = menu_e
+                else:
+                    # Add sub-menu for group.
+                    menu_i = gtk.Menu()
+                    menu_head_i = gtk.MenuItem(group)
+                    menu_head_i.set_submenu(menu_i)
+                    menu_head_i.set_use_underline(False)
+                    menu_e.append(menu_head_i)
+                for command, title in commands.iteritems():
+                    menu_item_j = gtk.MenuItem(title)
+                    menu_i.append(menu_item_j)
+
+                    def callback(group, command, electrode_data):
+                        # Closure for `callback` function to persist current
+                        # values `group, command, title` in callback.
+                        def wrapped(widget):
+                            gtk.idle_add(self.emit, 'electrode-command', group,
+                                         command, electrode_data)
+                        return wrapped
+                    menu_item_j.connect('activate', callback(group, command,
+                                                             electrode_data))
+
+        # Add menu items/groups for registered route commands.
+        if routes and self.route_commands:
+            # TODO: Refactor electrode/route command menu code to reduce code
+            # duplication (i.e., DRY).
+            separator = gtk.SeparatorMenuItem()
+            menu.append(separator)
+
+            # Add route sub-menu.
+            menu_r = gtk.Menu()
+            menu_head_r = gtk.MenuItem('Route(s)')
+            menu_head_r.set_submenu(menu_r)
+            menu_head_r.set_use_underline(False)
+            menu.append(menu_head_r)
+
+            route_data = {'route_ids': routes, 'event': event.copy()}
+            for group, commands in self.route_commands.iteritems():
+                if group is None:
+                    menu_i = menu_r
+                else:
+                    # Add sub-menu for group.
+                    menu_i = gtk.Menu()
+                    menu_head_i = gtk.MenuItem(group)
+                    menu_head_i.set_submenu(menu_i)
+                    menu_head_i.set_use_underline(False)
+                    menu_r.append(menu_head_i)
+                for command, title in commands.iteritems():
+                    menu_item_j = gtk.MenuItem(title)
+                    menu_i.append(menu_item_j)
+
+                    def callback(group, command, route_data):
+                        # Closure for `callback` function to persist current
+                        # values `group, command, title` in callback.
+                        def wrapped(widget):
+                            gtk.idle_add(self.emit, 'route-command', group,
+                                         command, route_data)
+                        return wrapped
+                    menu_item_j.connect('activate', callback(group, command,
+                                                             route_data))
+
+        menu.show_all()
+        return menu
 
     def on_widget__motion_notify_event(self, widget, event):
         '''
@@ -857,6 +910,19 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Add electrode plugin command to context menu.
         '''
         commands = self.electrode_commands.setdefault(group, OrderedDict())
+        if title is None:
+            title = (command[:1].upper() + command[1:]).replace('_', ' ')
+        commands[command] = title
+
+    ###########################################################################
+    # ## Route operation registration ##
+    def register_route_command(self, command, title=None, group=None):
+        '''
+        Register route command.
+
+        Add route plugin command to context menu.
+        '''
+        commands = self.route_commands.setdefault(group, OrderedDict())
         if title is None:
             title = (command[:1].upper() + command[1:]).replace('_', ' ')
         commands[command] = title

@@ -488,6 +488,21 @@ class DmfDeviceViewBase(SlaveView):
                                   electrode_id=electrode_data['electrode_id'],
                                   callback=command_callback)
 
+    def on_canvas_slave__route_command(self, slave, group, command,
+                                       route_data):
+        def command_callback(reply):
+            logger.info('[on_canvas_slave__route_command] %s.%s(%r)', group,
+                        command, route_data['route_ids'])
+            # Decode content to raise error, if necessary.
+            try:
+                decode_content_data(reply)
+            except:
+                logger.error('Route command error: %s.%s(%r)', group, command,
+                             route_data['route_ids'], exc_info=True)
+        self.plugin.execute_async(group, command,
+                                  route_ids=route_data['route_ids'],
+                                  callback=command_callback)
+
 
 class DmfDeviceFixedHubView(DmfDeviceViewBase):
     '''
