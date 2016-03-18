@@ -152,6 +152,7 @@ class DmfDeviceViewBase(SlaveView):
         if self.video_source_process is not None:
             self.video_source_process.terminate()
             logger.info('terminate video process')
+            self.video_source_process = None
 
     def terminate(self):
         self.cleanup()
@@ -399,13 +400,21 @@ class DmfDeviceViewBase(SlaveView):
         logger.info('video config selected\n%s', video_config)
         self.set_video_config(video_config)
 
+    def disable_video(self):
+        self.canvas_slave.disable()
+        # Hide registration layer (if visible).
+        self.layer_alpha_slave.set_alpha('registration', 0.)
+        self.cleanup_video()
+
+    def enable_video(self):
+        if all([self.video_config is not None,
+                self.video_source_process is None]):
+            self.set_video_config(self.video_config)
+
     def set_video_config(self, video_config):
         self.video_config = video_config
         if video_config is None:
-            self.canvas_slave.disable()
-            # Hide registration layer (if visible).
-            self.layer_alpha_slave.set_alpha('registration', 0.)
-            self.cleanup_video()
+            self.disable_video()
             return
 
         py_exe = sys.executable
