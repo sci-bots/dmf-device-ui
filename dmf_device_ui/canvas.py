@@ -199,7 +199,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                gtk.gdk.KEY_RELEASE_MASK)
         # Create initial (empty) cairo surfaces.
         surface_names = ('background', 'shapes', 'connections', 'routes',
-                         'channel_labels', 'registration')
+                         'channel_labels', 'actuated_shapes', 'registration')
         self.df_surfaces = pd.DataFrame([[self.get_surface(), 1.]
                                          for i in xrange(len(surface_names))],
                                         columns=['surface', 'alpha'],
@@ -376,6 +376,47 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     ###########################################################################
     # Render methods
+    def render_actuated_shapes(self, df_shapes=None):
+        '''
+        Render actuated electrode shapes.
+
+        Draw each electrode shape filled white.
+
+        See also `render_shapes(...)`.
+        '''
+        surface = self.get_surface()
+        if df_shapes is None:
+            if hasattr(self.canvas, 'df_canvas_shapes'):
+                df_shapes = self.canvas.df_canvas_shapes
+            else:
+                return surface
+        if not self.electrode_states.shape[0]:
+            return surface
+
+        cairo_context = cairo.Context(surface)
+
+        df_shapes = df_shapes.copy()
+        df_shapes['state'] = self.electrode_states.ix[df_shapes.id].values
+        df_actuated_shapes = (df_shapes.loc[df_shapes.state > 0]
+                              .dropna(subset=['state']))
+
+        for path_id, df_path_i in (df_actuated_shapes
+                                   .groupby(self.canvas.shape_i_columns)
+                                   [['x', 'y']]):
+            # Use attribute lookup for `x` and `y`, since it is considerably
+            # faster than `get`-based lookup using columns name strings.
+            vertices_x = df_path_i.x.values
+            vertices_y = df_path_i.y.values
+            cairo_context.move_to(vertices_x[0], vertices_y[0])
+            for x, y in itertools.izip(vertices_x[1:], vertices_y[1:]):
+                cairo_context.line_to(x, y)
+            cairo_context.close_path()
+
+            # Draw filled shape to indicate actuated electrode state.
+            cairo_context.set_source_rgba(1, 1, 1)
+            cairo_context.fill()
+        return surface
+
     def render_background(self):
         surface = self.get_surface()
         context = cairo.Context(surface)
@@ -412,6 +453,16 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         return surface
 
     def render_shapes(self, df_shapes=None, clip=False):
+        '''
+        Render static electrode shapes (independent of actuation state).
+
+        If video is enabled, draw white outline for each electrode (no fill).
+
+        If video is disabled, draw white outline for each electrode and fill
+        blue.
+
+        See also `render_actuated_shapes(...)`.
+        '''
         surface = self.get_surface()
         if df_shapes is None:
             if hasattr(self.canvas, 'df_canvas_shapes'):
@@ -432,25 +483,22 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             for x, y in itertools.izip(vertices_x[1:], vertices_y[1:]):
                 cairo_context.line_to(x, y)
             cairo_context.close_path()
-            state = self.electrode_states.get(path_id, 0)
 
             if self.enabled:
                 # Video is enabled.
 
-                # Draw unfilled shape unless electrode state is active.
-                line_width = 2 if state > 0 else 1
-                cairo_context.set_line_width(line_width)
-                alpha = .5 if state > 0 else 0
-                cairo_context.set_source_rgba(1, 1, 1, alpha)
-                cairo_context.fill_preserve()
                 # Draw white border around electrode.
+                line_width = 1
+                cairo_context.set_line_width(line_width)
                 cairo_context.set_source_rgb(1, 1, 1)
                 cairo_context.stroke()
             else:
-                cairo_context.set_line_width(1)
-                color = (1, 1, 1) if state > 0 else (0, 0, 1)
+                # Video is enabled.  Fill electrode blue.
+                color = (0, 0, 1)
                 cairo_context.set_source_rgb(*color)
                 cairo_context.fill_preserve()
+                # Draw white border around electrode.
+                cairo_context.set_line_width(1)
                 cairo_context.set_source_rgba(1, 1, 1)
                 cairo_context.stroke()
         return surface
@@ -536,8 +584,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def render(self):
         # Render each layer and update data frame with new content for each
         # surface.
-        for k in ('background', 'shapes', 'connections', 'routes',
-                  'channel_labels', 'registration'):
+        surface_names = ('background', 'shapes', 'connections', 'routes',
+                         'channel_labels', 'actuated_shapes', 'registration')
+        for k in surface_names:
             self.set_surface(k, getattr(self, 'render_' + k)())
         self.emit('surfaces-reset', self.df_surfaces)
         self.cairo_surface = flatten_surfaces(self.df_surfaces)

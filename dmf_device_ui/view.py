@@ -315,8 +315,9 @@ class DmfDeviceViewBase(SlaveView):
         if not (self.canvas_slave.electrode_states
                 .equals(updated_electrode_states)):
             self.canvas_slave.electrode_states = updated_electrode_states
-            self.canvas_slave.set_surface('shapes',
-                                          self.canvas_slave.render_shapes())
+            self.canvas_slave.set_surface('actuated_shapes',
+                                          self.canvas_slave
+                                          .render_actuated_shapes())
             self.canvas_slave.cairo_surface = flatten_surfaces(self
                                                                .canvas_slave
                                                                .df_surfaces)
@@ -326,8 +327,9 @@ class DmfDeviceViewBase(SlaveView):
         if not (self.canvas_slave.electrode_states
                 .equals(states['electrode_states'])):
             self.canvas_slave.electrode_states = states['electrode_states']
-            self.canvas_slave.set_surface('shapes',
-                                          self.canvas_slave.render_shapes())
+            self.canvas_slave.set_surface('actuated_shapes',
+                                          self.canvas_slave
+                                          .render_actuated_shapes())
             self.canvas_slave.cairo_surface = flatten_surfaces(self
                                                                .canvas_slave
                                                                .df_surfaces)
