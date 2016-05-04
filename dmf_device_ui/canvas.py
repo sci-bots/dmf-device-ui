@@ -284,6 +284,90 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             self._mode = value
     ###########################################################################
     # ## Mutators ##
+    def insert_surface(self, position, name, surface, alpha=1.):
+        '''
+        Insert Cairo surface as new layer.
+
+
+        Args
+        ----
+
+            position (int) : Index position to insert layer at.
+            name (str) : Name of layer.
+            surface (cairo.Context) : Surface to render.
+            alpha (float) : Alpha/transparency level in the range `[0, 1]`.
+        '''
+        if name in self.df_surfaces.index:
+            raise NameError('Surface already exists with `name="{}"`.'
+                            .format(name))
+        self.df_surfaces.loc[name] = surface, alpha
+
+        # Reorder layers such that the new surface is placed at the specified
+        # layer position (relative to the background surface).
+        surfaces_order = self.df_surfaces.index.values.tolist()
+        surfaces_order.remove(name)
+        base_index = surfaces_order.index('background') + 1
+        if position < 0:
+            position = len(surfaces_order) + position
+        surfaces_order.insert(base_index + position, name)
+        self.reorder_surfaces(surfaces_order)
+
+    def append_surface(self, name, surface, alpha=1.):
+        '''
+        Append Cairo surface as new layer on top of existing layers.
+
+        Args
+        ----
+
+            name (str) : Name of layer.
+            surface (cairo.ImageSurface) : Surface to render.
+            alpha (float) : Alpha/transparency level in the range `[0, 1]`.
+        '''
+        self.insert_surface(position=self.df_surfaces.index.shape[0],
+                            name=name, surface=surface, alpha=alpha)
+
+    def remove_surface(self, name):
+        '''
+        Remove layer from rendering stack and flatten remaining layers.
+
+        Args
+        ----
+
+            name (str) : Name of layer.
+        '''
+        self.df_surfaces.drop(name, axis=0, inplace=True)
+
+        # Order of layers may have changed after removing a layer. Trigger
+        # refresh of surfaces.
+        self.reorder_surfaces(self.df_surfaces.index)
+
+    def clone_surface(self, source_name, target_name, target_position=-1,
+                      alpha=1.):
+        '''
+        Clone surface from existing layer to a new name, inserting new surface
+        at specified position.
+
+        By default, new surface is appended as the top surface layer.
+
+        Args
+        ----
+
+            source_name (str) : Name of layer to clone.
+            target_name (str) : Name of new layer.
+        '''
+        source_surface = self.df_surfaces.surface.ix[source_name]
+        source_width = source_surface.get_width()
+        source_height = source_surface.get_height()
+        source_format = source_surface.get_format()
+
+        target_surface = cairo.ImageSurface(source_format, source_width,
+                                            source_height)
+        target_cairo_context = cairo.Context(target_surface)
+        target_cairo_context.set_source_surface(source_surface, 0, 0)
+        target_cairo_context.paint()
+        self.insert_surface(target_position, target_name, target_surface,
+                            alpha)
+
     def enable(self):
         if self.callback_id is None:
             self._enabled = True
