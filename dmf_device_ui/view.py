@@ -87,6 +87,18 @@ class DmfDeviceViewBase(SlaveView):
         self.layer_alpha_slave = \
             self.add_slave(LayerAlphaController(self.device_canvas),
                            'box_device')
+        # Get reference to button box containing "Show" and "Hide" buttons.
+        button_box = (self.layer_alpha_slave.widget.get_children()[-1]
+                      .get_children()[-1])
+        # Add "Refresh device" button to button box.
+        self.refresh_device_button = gtk.Button('Refresh device')
+        self.refresh_device_button.connect('clicked', lambda *args:
+                                           self.plugin
+                                           .execute_async('wheelerlab'
+                                                          '.device_info_plugin',
+                                                          'get_device'))
+        button_box.pack_start(self.refresh_device_button, False, False, 0)
+        button_box.show_all()
 
         self.box_settings.pack_start(self.box_video, False, False, 0)
         self.box_settings.pack_start(self.box_device, True, True, 0)
