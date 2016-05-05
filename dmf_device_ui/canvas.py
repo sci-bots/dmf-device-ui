@@ -460,7 +460,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     ###########################################################################
     # Render methods
-    def render_actuated_shapes(self, df_shapes=None):
+    def render_actuated_shapes(self, df_shapes=None, shape_scale=0.8):
         '''
         Render actuated electrode shapes.
 
@@ -475,12 +475,20 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             else:
                 return surface
         if not self.electrode_states.shape[0]:
+            # There are no actuated electrodes.  Nothing to draw.
             return surface
 
         cairo_context = cairo.Context(surface)
 
         df_shapes = df_shapes.copy()
+        # Scale shapes to leave shape edges uncovered.
+        df_shapes[['x', 'y']] = (df_shapes[['x_center', 'y_center']] +
+                                 df_shapes[['x_center_offset',
+                                            'y_center_offset']].values *
+                                 shape_scale)
         df_shapes['state'] = self.electrode_states.ix[df_shapes.id].values
+
+        # Find actuated shapes.
         df_actuated_shapes = (df_shapes.loc[df_shapes.state > 0]
                               .dropna(subset=['state']))
 
