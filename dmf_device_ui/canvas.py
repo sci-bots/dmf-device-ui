@@ -479,6 +479,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         if not self.electrode_states.shape[0]:
             # There are no actuated electrodes.  Nothing to draw.
             return surface
+        if 'x_center' not in df_shapes or 'y_center' not in df_shapes:
+            # No center points have been computed for shapes.
+            return surface
 
         cairo_context = cairo.Context(surface)
 
