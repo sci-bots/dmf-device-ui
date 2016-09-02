@@ -174,9 +174,16 @@ class DmfDeviceViewBase(SlaveView):
     ###########################################################################
     def on_canvas_slave__electrode_mouseover(self, slave, data):
         self.info_slave.electrode_id = data['electrode_id']
-        channels = (self.canvas_slave.electrode_channels
-                    .ix[data['electrode_id']])
-        self.info_slave.channels = ', '.join(map(str, channels))
+        try:
+            channels = (self.canvas_slave.electrode_channels
+                        .ix[data['electrode_id']])
+        except KeyError:
+            # Electrode is not mapped to any channels.
+            logger.debug('Electrode (%s) is not mapped to any channels.',
+                         data['electrode_id'])
+            self.info_slave.channels = ''
+        else:
+            self.info_slave.channels = ', '.join(map(str, channels))
 
     def on_canvas_slave__electrode_mouseout(self, slave, data):
         self.info_slave.electrode_id = ''
