@@ -1012,7 +1012,10 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         '''
         Called when mouse pointer is moved within drawing area.
         '''
-        if event.is_hint:
+        if self.canvas is None:
+            # Canvas has not been initialized.  Nothing to do.
+            return
+        elif event.is_hint:
             pointer = event.window.get_pointer()
             x, y, mod_type = pointer
         else:
