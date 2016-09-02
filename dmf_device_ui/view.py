@@ -248,6 +248,29 @@ class DmfDeviceViewBase(SlaveView):
         self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
                                   'execute_routes', electrode_id=electrode_id)
 
+    def on_canvas_slave__set_electrode_channels(self, slave, electrode_id,
+                                                channels):
+        def command_callback(reply):
+            logger.info('[on_canvas_slave__set_electrode_channels] %s: %s',
+                        electrode_id, channels)
+            # Decode content to raise error, if necessary.
+            try:
+                modified = decode_content_data(reply)
+            except:
+                logger.error('Error setting electrode channels: %s: %s',
+                             electrode_id, channels, exc_info=True)
+            else:
+                if modified:
+                    self.canvas_slave.canvas = None
+                    # Device channels were modified, so request device refresh.
+                    self.plugin.execute_async('wheelerlab.device_info_plugin',
+                                              'get_device')
+        self.plugin.execute_async('wheelerlab.device_info_plugin',
+                                  'set_electrode_channels',
+                                  electrode_id=electrode_id,
+                                  channels=channels,
+                                  callback=command_callback)
+
     def on_canvas_slave__surfaces_reset(self, slave, df_surfaces):
         logger.debug('[surfaces reset]\n%s', df_surfaces)
         self.layer_alpha_slave.set_surfaces(df_surfaces)

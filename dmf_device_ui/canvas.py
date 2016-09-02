@@ -5,14 +5,17 @@ import logging
 
 from cairo_helpers.surface import flatten_surfaces
 from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
-from pygtkhelpers.utils import gsignal, refresh_gui
+from pygtkhelpers.utils import gsignal
 from pygst_utils.video_view.video_sink import VideoSink
 from pygst_utils.video_view import np_to_cairo
+from svg_model import compute_shape_centers
 from svg_model.color import hex_color_to_rgba
 import cairo
 import gtk
 import numpy as np
 import pandas as pd
+import pygtkhelpers as pgh
+import pygtkhelpers.schema
 
 logger = logging.getLogger(__name__)
 
@@ -74,6 +77,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('route-command', str, str, object)
     gsignal('route-electrode-added', object)
     gsignal('route-selected', object)
+    gsignal('set-electrode-channels', str, object) # electrode_id, channels
     gsignal('surface-rendered', str, object)
     gsignal('surfaces-reset', object)
 
@@ -207,8 +211,6 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                                        name='name'))
 
     def reset_canvas(self, width, height):
-        from svg_model import compute_shape_centers
-
         super(DmfDeviceCanvas, self).reset_canvas(width, height)
         if self.device is None or self.canvas.df_canvas_shapes.shape[0] == 0:
             return
@@ -823,11 +825,59 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 menu.popup(None, None, None, event.button, event.time)
 
     def create_context_menu(self, event, shape):
+        '''
+        Parameters
+        ----------
+        event : gtk.gdk.Event
+            GTK mouse click event.
+        shape : str
+            Electrode shape identifier (e.g., `"electrode028"`).
+
+        Returns
+        -------
+        gtk.Menu
+            Context menu.
+        '''
         routes = self.df_routes.loc[self.df_routes.electrode_i == shape,
                                     'route_i'].astype(int).unique().tolist()
 
         def clear_electrode_states(widget):
             self.emit('clear-electrode-states')
+
+        def edit_electrode_channels(widget):
+            # Create schema to only accept a well-formed comma-separated list
+            # of integer channel numbers.  Default to list of channels
+            # currently mapped to electrode.
+            if shape in self.electrode_channels.index:
+                # If there is a single channel mapped to the electrode,
+                # the `...ix[shape]` lookup below returns a `pandas.Series`.
+                # However, if multiple channels are mapped to the electrode
+                # the `...ix[shape]` lookup returns a `pandas.DataFrame`.
+                # Calling `.values.ravel()` returns data in the same form in
+                # either situation.
+                current_channels = (self.electrode_channels.ix[shape]
+                                    .values.ravel().tolist())
+            else:
+                # Electrode has no channels currently mapped to it.
+                current_channels = []
+            schema = {'type': 'object',
+                      'properties': {'channels':
+                                     {'type': 'string', 'pattern':
+                                      r'^(\d+\s*(,\s*\d+\s*)*)?$',
+                                      'default':
+                                      ','.join(map(str, current_channels))}}}
+
+            try:
+                # Prompt user to enter a list of channel numbers (or nothing).
+                result = pgh.schema.schema_dialog(schema, device_name=False)
+            except ValueError:
+                pass
+            else:
+                # Well-formed (according to schema pattern) comma-separated
+                # list of channels was provided.
+                channels = sorted(set(map(int, filter(len, result['channels']
+                                                      .split(',')))))
+                self.emit('set-electrode-channels', shape, channels)
 
         def clear_routes(widget):
             self.emit('clear-routes', shape)
@@ -846,6 +896,10 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         menu_clear_electrode_states = gtk.MenuItem('Clear all electrode '
                                                    'states')
         menu_clear_electrode_states.connect('activate', clear_electrode_states)
+        menu_edit_electrode_channels = gtk.MenuItem('Edit electrode '
+                                                    'channels...')
+        menu_edit_electrode_channels.connect('activate',
+                                             edit_electrode_channels)
         menu_clear_routes = gtk.MenuItem('Clear electrode routes')
         menu_clear_routes.connect('activate', clear_routes)
         menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
@@ -856,9 +910,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                                'routes')
         menu_execute_all_routes.connect('activate', execute_all_routes)
 
-        for item in (menu_clear_electrode_states, menu_separator,
-                        menu_clear_routes, menu_clear_all_routes,
-                        menu_execute_routes, menu_execute_all_routes):
+        for item in (menu_clear_electrode_states, menu_edit_electrode_channels,
+                     menu_separator, menu_clear_routes, menu_clear_all_routes,
+                     menu_execute_routes, menu_execute_all_routes):
             menu.append(item)
             item.show()
 
