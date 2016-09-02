@@ -24,18 +24,18 @@ else:
     try:
         import gtk
     except ImportError:
-        print >> sys.err, ('Please install Python bindings for Gtk 2 using '
-                           'your systems package manager.')
+        print >> sys.stderr, ('Please install Python bindings for Gtk 2 using '
+                              'your systems package manager.')
     try:
         import cv2
     except ImportError:
-        print >> sys.err, ('Please install OpenCV Python bindings using your '
-                           'systems package manager.')
+        print >> sys.stderr, ('Please install OpenCV Python bindings using '
+                              'your systems package manager.')
     try:
         import gst
     except ImportError:
-        print >> sys.err, ('Please install GStreamer Python bindings using '
-                           'your systems package manager.')
+        print >> sys.stderr, ('Please install GStreamer Python bindings using '
+                              'your systems package manager.')
 
 setup(name='dmf-device-ui',
       version=version.getVersion(),
