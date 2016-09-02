@@ -583,12 +583,22 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
                 # Draw white border around electrode.
                 line_width = 1
+                if path_id not in self.electrode_channels.index:
+                    #         on  off on  off
+                    dashes = [10, 10]
+                    color = (1, 0, 1)
+                    line_width *= 2
+                else:
+                    dashes = []
+                    color = (1, 1, 1)
+                cairo_context.set_dash(dashes)
                 cairo_context.set_line_width(line_width)
-                cairo_context.set_source_rgb(1, 1, 1)
+                cairo_context.set_source_rgb(*color)
                 cairo_context.stroke()
             else:
                 # Video is enabled.  Fill electrode blue.
-                color = (0, 0, 1)
+                color = ((0, 0, 1) if path_id in self.electrode_channels.index
+                         else (1, 0, 1))
                 cairo_context.set_source_rgb(*color)
                 cairo_context.fill_preserve()
                 # Draw white border around electrode.
