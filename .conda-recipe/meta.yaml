@@ -1,0 +1,42 @@
+# source will be downloaded prior to filling in jinja templates
+# Example assumes that this folder has setup.py in it
+source:
+  git_url: ../
+
+package:
+  name: dmf-device-ui
+{% if GIT_DESCRIBE_NUMBER > '0' %}
+  version: {{ GIT_DESCRIBE_TAG[1:] }}.post{{ GIT_DESCRIBE_NUMBER }}
+{% else %}
+  version: {{ GIT_DESCRIBE_TAG[1:] }}
+{% endif %}
+
+requirements:
+  build:
+    - microdrop >=2.0.post22.dev158803465
+    - microdrop-utility >=0.4
+    - networkx >=1.10
+    - opencv-python
+    - pandas >=0.17.0
+    - path-helpers >=0.2
+    - paver
+    - pygst_utils >=0.3.post2
+    - svg-model >=0.6
+    - wheeler.pygtkhelpers >=0.12.post4
+    - zmq-plugin >=0.2.post2
+
+  run:
+    - microdrop >=2.0.post22.dev158803465
+    - microdrop-utility >=0.4
+    - networkx >=1.10
+    - opencv-python
+    - pandas >=0.17.0
+    - path-helpers >=0.2
+    - pygst_utils >=0.3.post2
+    - svg-model >=0.6
+    - wheeler.pygtkhelpers >=0.12.post4
+    - zmq-plugin >=0.2.post2
+
+about:
+  home: http://github.com/wheeler-microfluidics/dmf-device-ui
+  license: GPL
