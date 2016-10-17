@@ -20,7 +20,7 @@ requirements:
     - pandas >=0.17.0
     - path_helpers >=0.2
     - paver
-    - pygst_utils >=0.3.post2
+    - pygst_utils >=0.3.post12
     - svg-model >=0.6
     - wheeler.pygtkhelpers >=0.12.post9
     - zmq-plugin >=0.2.post2
@@ -32,7 +32,7 @@ requirements:
     - opencv-helpers >=0.1.post1
     - pandas >=0.17.0
     - path_helpers >=0.2
-    - pygst_utils >=0.3.post2
+    - pygst_utils >=0.3.post12
     - svg-model >=0.6
     - wheeler.pygtkhelpers >=0.12.post9
     - zmq-plugin >=0.2.post2
