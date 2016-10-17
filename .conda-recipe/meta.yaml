@@ -22,7 +22,7 @@ requirements:
     - paver
     - pygst_utils >=0.3.post2
     - svg-model >=0.6
-    - wheeler.pygtkhelpers >=0.12.post4
+    - wheeler.pygtkhelpers >=0.12.post9
     - zmq-plugin >=0.2.post2
 
   run:
@@ -34,7 +34,7 @@ requirements:
     - path_helpers >=0.2
     - pygst_utils >=0.3.post2
     - svg-model >=0.6
-    - wheeler.pygtkhelpers >=0.12.post4
+    - wheeler.pygtkhelpers >=0.12.post9
     - zmq-plugin >=0.2.post2
 
 about:
