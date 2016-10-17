@@ -167,7 +167,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                             columns=['x', 'y'], dtype=float)
 
     def update_transforms(self):
-        import cv2
+        from opencv_helpers.safe_cv import cv2
 
         if (self.df_canvas_corners.shape[0] == 0 or
             self.df_frame_corners.shape[0] == 0):

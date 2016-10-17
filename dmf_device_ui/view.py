@@ -6,13 +6,13 @@ import sys
 
 from cairo_helpers.surface import flatten_surfaces
 from microdrop_utility.gui import register_shortcuts
+from opencv_helpers.safe_cv import cv2
+from pygst_utils.video_view.mode import VideoModeSelector
+from pygst_utils.video_view.video_sink import Transform, VideoInfo
 from pygtkhelpers.delegates import SlaveView
 from pygtkhelpers.ui.views import find_closest
 from pygtkhelpers.ui.views.surface import LayerAlphaController
-from pygst_utils.video_view.mode import VideoModeSelector
-from pygst_utils.video_view.video_sink import Transform, VideoInfo
 from zmq_plugin.schema import decode_content_data
-import cv2
 import gobject
 import gtk
 import numpy as np

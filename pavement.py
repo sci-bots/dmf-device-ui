@@ -19,7 +19,7 @@ install_requires = ['microdrop>=2.0.post22.dev158803465',
 
 # Platform-specific package requirements.
 if platform.system() == 'Windows':
-    install_requires += ['opencv-python', 'pygtk2-win', 'pycairo-gtk2-win',
+    install_requires += ['opencv-helpers', 'pygtk2-win', 'pycairo-gtk2-win',
                          'pygst-0.10-win']
 else:
     try:
@@ -28,7 +28,7 @@ else:
         print >> sys.stderr, ('Please install Python bindings for Gtk 2 using '
                               'your systems package manager.')
     try:
-        import cv2
+        from opencv_helpers.safe_cv import cv2
     except ImportError:
         print >> sys.stderr, ('Please install OpenCV Python bindings using '
                               'your systems package manager.')
