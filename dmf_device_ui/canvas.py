@@ -21,6 +21,16 @@ logger = logging.getLogger(__name__)
 
 
 class Route(object):
+    '''
+    Attributes
+    ----------
+    device : microdrop.dmf_device.DmfDevice
+    electrode_ids : list
+        Ordered list of **connected** electrodes ids.
+        
+        Represents an actuation sequence of electrodes that would support
+        liquid movement between the first and last electrode.
+    '''
     def __init__(self, device):
         self.device = device
         self.electrode_ids = []
@@ -29,6 +39,17 @@ class Route(object):
         return '<Route electrode_ids=%s>' % self.electrode_ids
 
     def append(self, electrode_id):
+        '''
+        Append the specified electrode to the route.
+        
+        The route is not modified (i.e., electrode is not appended) if
+        electrode is not connected to the last electrode in the existing route.
+
+        Parameters
+        ----------
+        electrode_id : str
+            Electrode identifier.
+        '''
         do_append = False
 
         if not self.electrode_ids:
@@ -36,10 +57,17 @@ class Route(object):
         elif self.device.shape_indexes.shape[0] > 0:
             source = self.electrode_ids[-1]
             target = electrode_id
-            source_id, target_id = self.device.shape_indexes[[source, target]]
-            if self.device.adjacency_matrix[source_id, target_id]:
-                # Electrodes are connected, so append target to current route.
-                do_append = True
+            if not (source == target):
+                source_id, target_id = self.device.shape_indexes[[source,
+                                                                  target]]
+                try:
+                    if self.device.adjacency_matrix[source_id, target_id]:
+                        # Electrodes are connected, so append target to current
+                        # route.
+                        do_append = True
+                except IndexError, exception:
+                    logger.warning('Electrodes `%s` and `%s` are not '
+                                   'connected.', source, target)
 
         if do_append:
             self.electrode_ids.append(electrode_id)
