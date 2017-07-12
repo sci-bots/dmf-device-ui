@@ -36,14 +36,14 @@ class DevicePlugin(Plugin):
                           .recv_multipart(zmq.NOBLOCK))
             source, target, msg_type, msg_json = msg_frames
 
-            if ((source == 'wheelerlab.device_info_plugin') and
+            if ((source == 'microdrop.device_info_plugin') and
                 (msg_type == 'execute_reply')):
                 msg = json.loads(msg_json)
                 if msg['content']['command'] == 'get_device':
                     data = decode_content_data(msg)
                     if data is not None:
                         self.parent.on_device_loaded(data)
-            elif ((source == 'wheelerlab.electrode_controller_plugin') and
+            elif ((source == 'microdrop.electrode_controller_plugin') and
                 (msg_type == 'execute_reply')):
                 msg = json.loads(msg_json)
                 if msg['content']['command'] in ('set_electrode_state',
@@ -61,11 +61,11 @@ class DevicePlugin(Plugin):
                     else:
                         #self.emit('electrode-states-set', data)
                         self.parent.on_electrode_states_set(data)
-            elif ((source == 'wheelerlab.droplet_planning_plugin') and
+            elif ((source == 'microdrop.droplet_planning_plugin') and
                   (msg_type == 'execute_reply')):
                 msg = json.loads(msg_json)
                 if msg['content']['command'] in ('add_route', ):
-                    self.execute_async('wheelerlab.droplet_planning_plugin',
+                    self.execute_async('microdrop.droplet_planning_plugin',
                                        'get_routes')
                 elif msg['content']['command'] in ('get_routes', ):
                     data = decode_content_data(msg)
@@ -83,10 +83,10 @@ class DevicePlugin(Plugin):
 
     def request_refresh(self):
         # Request electrode/channel states.
-        self.execute_async('wheelerlab.electrode_controller_plugin',
+        self.execute_async('microdrop.electrode_controller_plugin',
                            'get_channel_states')
         # Request routes.
-        self.execute_async('wheelerlab.droplet_planning_plugin', 'get_routes')
+        self.execute_async('microdrop.droplet_planning_plugin', 'get_routes')
 
     def on_execute__get_allocation(self, request):
         return self.parent.get_allocation()

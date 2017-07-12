@@ -165,7 +165,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.electrode_commands = OrderedDict()
         # Register test command
         #self.register_electrode_command('ping',
-                                        #group='wheelerlab.device_info_plugin')
+                                        #group='microdrop.device_info_plugin')
         # Registered route commands
         self.route_commands = OrderedDict()
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
@@ -855,8 +855,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                             gtk.gdk.BUTTON1_MASK) and
                     self.last_pressed != shape):
                     self.emit('electrode-pair-selected',
-                            {'source_id': self.last_pressed, 'target_id': shape,
-                            'event': event.copy()})
+                              {'source_id': self.last_pressed, 'target_id': shape,
+                               'event': event.copy()})
                 self.last_pressed = None
             elif event.button == 3:
                 # Create right-click pop-up menu.

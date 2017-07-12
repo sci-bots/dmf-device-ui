@@ -94,7 +94,7 @@ class DmfDeviceViewBase(SlaveView):
         self.refresh_device_button = gtk.Button('Refresh device')
         self.refresh_device_button.connect('clicked', lambda *args:
                                            self.plugin
-                                           .execute_async('wheelerlab'
+                                           .execute_async('microdrop'
                                                           '.device_info_plugin',
                                                           'get_device'))
         button_box.pack_start(self.refresh_device_button, False, False, 0)
@@ -193,7 +193,7 @@ class DmfDeviceViewBase(SlaveView):
         if self.plugin is None:
             return
         state = self.canvas_slave.electrode_states.get(data['electrode_id'], 0)
-        self.plugin.execute_async('wheelerlab.electrode_controller_plugin',
+        self.plugin.execute_async('microdrop.electrode_controller_plugin',
                                   'set_electrode_states', electrode_states=
                                   pd.Series([not state],
                                             index=[data['electrode_id']]))
@@ -219,7 +219,7 @@ class DmfDeviceViewBase(SlaveView):
         try:
             shortest_path = self.canvas_slave.device.find_path(source_id,
                                                                target_id)
-            self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+            self.plugin.execute_async('microdrop.droplet_planning_plugin',
                                       'add_route', drop_route=shortest_path)
         except nx.NetworkXNoPath:
             logger.error('No path found between %s and %s.', source_id,
@@ -227,7 +227,7 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_canvas_slave__route_selected(self, slave, route):
         logger.debug('Route selected: %s', route)
-        self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+        self.plugin.execute_async('microdrop.droplet_planning_plugin',
                                   'add_route', drop_route=route.electrode_ids)
 
     def on_canvas_slave__route_electrode_added(self, slave, electrode_id):
@@ -236,15 +236,15 @@ class DmfDeviceViewBase(SlaveView):
     def on_canvas_slave__clear_routes(self, slave, electrode_id):
         def refresh_routes(reply):
             # Request routes.
-            self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+            self.plugin.execute_async('microdrop.droplet_planning_plugin',
                                       'get_routes')
-        self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+        self.plugin.execute_async('microdrop.droplet_planning_plugin',
                                   'clear_routes', electrode_id=electrode_id,
                                   callback=refresh_routes)
 
     def on_canvas_slave__clear_electrode_states(self, slave):
         if self.plugin is not None:
-            (self.plugin.execute('wheelerlab.electrode_controller_plugin',
+            (self.plugin.execute('microdrop.electrode_controller_plugin',
                                  'set_electrode_states',
                                  electrode_states=
                                  pd.Series(0, dtype=int,
@@ -252,7 +252,7 @@ class DmfDeviceViewBase(SlaveView):
                                            .electrodes)))
 
     def on_canvas_slave__execute_routes(self, slave, electrode_id):
-        self.plugin.execute_async('wheelerlab.droplet_planning_plugin',
+        self.plugin.execute_async('microdrop.droplet_planning_plugin',
                                   'execute_routes', electrode_id=electrode_id)
 
     def on_canvas_slave__set_electrode_channels(self, slave, electrode_id,
@@ -270,9 +270,9 @@ class DmfDeviceViewBase(SlaveView):
                 if modified:
                     self.canvas_slave.canvas = None
                     # Device channels were modified, so request device refresh.
-                    self.plugin.execute_async('wheelerlab.device_info_plugin',
+                    self.plugin.execute_async('microdrop.device_info_plugin',
                                               'get_device')
-        self.plugin.execute_async('wheelerlab.device_info_plugin',
+        self.plugin.execute_async('microdrop.device_info_plugin',
                                   'set_electrode_channels',
                                   electrode_id=electrode_id,
                                   channels=channels,
@@ -325,7 +325,7 @@ class DmfDeviceViewBase(SlaveView):
         self.plugin = plugin
 
         # Block until device is retrieved from device info plugin.
-        self.plugin.execute_async('wheelerlab.device_info_plugin',
+        self.plugin.execute_async('microdrop.device_info_plugin',
                                   'get_device')
         # Periodically process outstanding plugin socket messages.
         self.socket_timeout_id = gtk.timeout_add(25, self.plugin.check_sockets)
