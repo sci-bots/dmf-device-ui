@@ -219,7 +219,7 @@ class DmfDeviceViewBase(SlaveView):
         try:
             shortest_path = self.canvas_slave.device.find_path(source_id,
                                                                target_id)
-            self.plugin.execute_async('microdrop.droplet_planning_plugin',
+            self.plugin.execute_async('droplet_planning_plugin',
                                       'add_route', drop_route=shortest_path)
         except nx.NetworkXNoPath:
             logger.error('No path found between %s and %s.', source_id,
@@ -227,7 +227,7 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_canvas_slave__route_selected(self, slave, route):
         logger.debug('Route selected: %s', route)
-        self.plugin.execute_async('microdrop.droplet_planning_plugin',
+        self.plugin.execute_async('droplet_planning_plugin',
                                   'add_route', drop_route=route.electrode_ids)
 
     def on_canvas_slave__route_electrode_added(self, slave, electrode_id):
@@ -236,9 +236,9 @@ class DmfDeviceViewBase(SlaveView):
     def on_canvas_slave__clear_routes(self, slave, electrode_id):
         def refresh_routes(reply):
             # Request routes.
-            self.plugin.execute_async('microdrop.droplet_planning_plugin',
+            self.plugin.execute_async('droplet_planning_plugin',
                                       'get_routes')
-        self.plugin.execute_async('microdrop.droplet_planning_plugin',
+        self.plugin.execute_async('droplet_planning_plugin',
                                   'clear_routes', electrode_id=electrode_id,
                                   callback=refresh_routes)
 
@@ -252,7 +252,7 @@ class DmfDeviceViewBase(SlaveView):
                                            .electrodes)))
 
     def on_canvas_slave__execute_routes(self, slave, electrode_id):
-        self.plugin.execute_async('microdrop.droplet_planning_plugin',
+        self.plugin.execute_async('droplet_planning_plugin',
                                   'execute_routes', electrode_id=electrode_id)
 
     def on_canvas_slave__set_electrode_channels(self, slave, electrode_id,
