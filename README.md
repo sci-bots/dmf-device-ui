@@ -1,3 +1,4 @@
+![https://ci.appveyor.com/api/projects/status/github/wheeler-microfluidics/dmf-device-ui?branch=master&svg=true](https://ci.appveyor.com/api/projects/status/github/wheeler-microfluidics/dmf-device-ui?branch=master&svg=true)
 dmf-device-ui
 =============
 
