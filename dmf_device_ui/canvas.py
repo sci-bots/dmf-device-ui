@@ -108,6 +108,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('set-electrode-channels', str, object) # electrode_id, channels
     gsignal('surface-rendered', str, object)
     gsignal('surfaces-reset', object)
+    gsignal('measure-liquid-capacitance')
+    gsignal('measure-filler-capacitance')
 
     # Video signals
     gsignal('point-pair-selected', object)
@@ -932,6 +934,12 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         def execute_all_routes(widget):
             self.emit('execute-routes', None)
 
+        def measure_liquid_capacitance(widget):
+            self.emit('measure-liquid-capacitance')
+
+        def measure_filler_capacitance(widget):
+            self.emit('measure-filler-capacitance')
+
         menu = gtk.Menu()
         menu_separator = gtk.SeparatorMenuItem()
         menu_clear_electrode_states = gtk.MenuItem('Clear all electrode '
@@ -950,10 +958,18 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         menu_execute_all_routes = gtk.MenuItem('Execute all electrode '
                                                'routes')
         menu_execute_all_routes.connect('activate', execute_all_routes)
+        menu_measure_liquid_cap = gtk.MenuItem('Measure capacitance of liquid')
+        menu_measure_liquid_cap.connect('activate', measure_liquid_capacitance)
+        menu_measure_filler_cap = gtk.MenuItem('Measure capacitance of filler media')
+        menu_measure_filler_cap.connect('activate', measure_filler_capacitance)
 
         for item in (menu_clear_electrode_states, menu_edit_electrode_channels,
-                     menu_separator, menu_clear_routes, menu_clear_all_routes,
-                     menu_execute_routes, menu_execute_all_routes):
+                     gtk.SeparatorMenuItem(),
+                     menu_clear_routes, menu_clear_all_routes,
+                     menu_execute_routes, menu_execute_all_routes,
+                     gtk.SeparatorMenuItem(),
+                     menu_measure_liquid_cap,
+                     menu_measure_filler_cap):
             menu.append(item)
             item.show()
 

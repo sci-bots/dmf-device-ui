@@ -301,6 +301,14 @@ class DmfDeviceViewBase(SlaveView):
         self.canvas_slave.reorder_surfaces(reordered_index)
         gtk.idle_add(self.canvas_slave.draw)
 
+    def on_canvas_slave__measure_liquid_capacitance(self, slave):
+        self.plugin.execute_async('dropbot_plugin',
+                                  'measure_liquid_capacitance')
+
+    def on_canvas_slave__measure_filler_capacitance(self, slave):
+        self.plugin.execute_async('dropbot_plugin',
+                                  'measure_filler_capacitance')
+
     ###########################################################################
     # ZeroMQ plugin callbacks
     ###########################################################################
