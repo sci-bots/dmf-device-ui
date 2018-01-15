@@ -2,6 +2,7 @@
 from datetime import datetime
 from subprocess import Popen
 import logging
+import subprocess as sp
 import sys
 
 from cairo_helpers.surface import flatten_surfaces
@@ -161,9 +162,14 @@ class DmfDeviceViewBase(SlaveView):
         self.cleanup_video()
 
     def cleanup_video(self):
+        '''
+        .. versionchanged:: 0.6.1
+            Log terminated video source process ID.
+        '''
         if self.video_source_process is not None:
             self.video_source_process.terminate()
-            logger.info('terminate video process')
+            logger.info('Terminated video process: %s',
+                        self.video_source_process.pid)
             self.video_source_process = None
 
     def terminate(self):
@@ -456,6 +462,10 @@ class DmfDeviceViewBase(SlaveView):
             self.set_video_config(self.video_config)
 
     def set_video_config(self, video_config):
+        '''
+        .. versionchanged:: 0.6.1
+            Log video source process ID.
+        '''
         self.video_config = video_config
         if video_config is None:
             self.disable_video()
@@ -476,7 +486,9 @@ class DmfDeviceViewBase(SlaveView):
                    'fromjson', '-p', str(port), transport, host,
                    video_config.to_json()]
         logger.info(' '.join(command))
-        self.video_source_process = Popen(command)
+        self.video_source_process = sp.Popen(command)
+        logger.info('Launched video source process: %s',
+                    self.video_source_process.pid)
         self.canvas_slave.enable()
 
     def on_frame_rate_update(self, slave, frame_rate, dropped_rate):
