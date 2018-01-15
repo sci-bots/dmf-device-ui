@@ -23,7 +23,8 @@ requirements:
     - pygst_utils >=0.3.post12
     - svg-model >=0.6
     - wheeler.pygtkhelpers >=0.12.post9
-    - zmq-plugin >=0.2.post2
+    #: ..versionchanged:: 0.6.2
+    - zmq-plugin >=0.3
 
   run:
     - microdrop >=2.0.post22.dev158803465
@@ -35,7 +36,8 @@ requirements:
     - pygst_utils >=0.3.post12
     - svg-model >=0.6
     - wheeler.pygtkhelpers >=0.12.post9
-    - zmq-plugin >=0.2.post2
+    #: ..versionchanged:: 0.6.2
+    - zmq-plugin >=0.3
 
 about:
   home: http://github.com/wheeler-microfluidics/dmf-device-ui
