@@ -324,8 +324,13 @@ class DmfDeviceViewBase(SlaveView):
                 return True
 
     def on_heartbeat_error(self):
+        '''
+        .. versionchanged:: 0.6.3
+            Close app after cleaning up video process.
+        '''
         logger.error('Timed out waiting for heartbeat ping.')
         self.cleanup()
+        raise SystemExit(-1)
 
     def on_plugin_connected(self, plugin):
         self.plugin = plugin
