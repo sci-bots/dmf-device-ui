@@ -327,10 +327,12 @@ class DmfDeviceViewBase(SlaveView):
         '''
         .. versionchanged:: 0.6.3
             Close app after cleaning up video process.
+
+        .. versionchanged:: 0.6.4
+            Do not close application due to heartbeat timeout.  Instead,
+            require explicit shutdown.
         '''
-        logger.error('Timed out waiting for heartbeat ping.')
-        self.cleanup()
-        raise SystemExit(-1)
+        logger.debug('Timed out waiting for heartbeat ping.')
 
     def on_plugin_connected(self, plugin):
         self.plugin = plugin
