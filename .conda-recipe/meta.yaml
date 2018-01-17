@@ -22,7 +22,8 @@ requirements:
     - paver
     - pygst_utils >=0.3.post12
     - svg-model >=0.6
-    - wheeler.pygtkhelpers >=0.12.post9
+    #: ..versionchanged:: 0.7
+    - wheeler.pygtkhelpers >=0.20
     #: ..versionchanged:: 0.6.2
     - zmq-plugin >=0.3
 
@@ -35,10 +36,11 @@ requirements:
     - path_helpers >=0.2
     - pygst_utils >=0.3.post12
     - svg-model >=0.6
-    - wheeler.pygtkhelpers >=0.12.post9
+    #: ..versionchanged:: 0.7
+    - wheeler.pygtkhelpers >=0.20
     #: ..versionchanged:: 0.6.2
     - zmq-plugin >=0.3
 
 about:
-  home: http://github.com/wheeler-microfluidics/dmf-device-ui
+  home: http://github.com/wheeler-microfluidics/{{ PKG_NAME }}
   license: GPL
