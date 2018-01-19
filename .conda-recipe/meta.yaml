@@ -13,6 +13,8 @@ package:
 
 requirements:
   build:
+    #: .. versionadded:: 0.10
+    - debounce
     - microdrop >=2.0.post22.dev158803465
     - microdrop-utility >=0.4
     - networkx >=1.10
@@ -28,6 +30,8 @@ requirements:
     - zmq-plugin >=0.3
 
   run:
+    #: .. versionadded:: 0.10
+    - debounce
     - microdrop >=2.0.post22.dev158803465
     - microdrop-utility >=0.4
     - networkx >=1.10
@@ -41,6 +45,20 @@ requirements:
     #: ..versionchanged:: 0.6.2
     - zmq-plugin >=0.3
 
+#: .. versionadded:: 0.10
+test:
+  imports:
+    - dmf_device_ui
+    - dmf_device_ui.bin
+    - dmf_device_ui.bin.device_view
+    - dmf_device_ui.canvas
+    - dmf_device_ui.client
+    - dmf_device_ui.notifier
+    - dmf_device_ui.plugin
+    - dmf_device_ui.view
+
 about:
-  home: http://github.com/wheeler-microfluidics/{{ PKG_NAME }}
-  license: GPL
+  #: .. versionchanged:: 0.10
+  home: http://github.com/sci-bots/{{ PKG_NAME }}
+  #: .. versionchanged:: 0.10
+  license: BSD-3
