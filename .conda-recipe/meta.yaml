@@ -45,6 +45,18 @@ requirements:
     #: ..versionchanged:: 0.6.2
     - zmq-plugin >=0.3
 
+#: .. versionadded:: X.X.X
+test:
+  imports:
+    - dmf_device_ui
+    - dmf_device_ui.bin
+    - dmf_device_ui.bin.device_view
+    - dmf_device_ui.canvas
+    - dmf_device_ui.client
+    - dmf_device_ui.notifier
+    - dmf_device_ui.plugin
+    - dmf_device_ui.view
+
 about:
   home: http://github.com/wheeler-microfluidics/{{ PKG_NAME }}
   #: .. versionchanged:: X.X.X
