@@ -13,6 +13,8 @@ package:
 
 requirements:
   build:
+    #: .. versionadded:: X.X.X
+    - debounce
     - microdrop >=2.0.post22.dev158803465
     - microdrop-utility >=0.4
     - networkx >=1.10
@@ -28,6 +30,8 @@ requirements:
     - zmq-plugin >=0.3
 
   run:
+    #: .. versionadded:: X.X.X
+    - debounce
     - microdrop >=2.0.post22.dev158803465
     - microdrop-utility >=0.4
     - networkx >=1.10
