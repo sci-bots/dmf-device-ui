@@ -13,7 +13,7 @@ package:
 
 requirements:
   build:
-    #: .. versionadded:: X.X.X
+    #: .. versionadded:: 0.10
     - debounce
     - microdrop >=2.0.post22.dev158803465
     - microdrop-utility >=0.4
@@ -30,7 +30,7 @@ requirements:
     - zmq-plugin >=0.3
 
   run:
-    #: .. versionadded:: X.X.X
+    #: .. versionadded:: 0.10
     - debounce
     - microdrop >=2.0.post22.dev158803465
     - microdrop-utility >=0.4
@@ -45,7 +45,7 @@ requirements:
     #: ..versionchanged:: 0.6.2
     - zmq-plugin >=0.3
 
-#: .. versionadded:: X.X.X
+#: .. versionadded:: 0.10
 test:
   imports:
     - dmf_device_ui
@@ -58,7 +58,7 @@ test:
     - dmf_device_ui.view
 
 about:
-  #: .. versionchanged:: X.X.X
+  #: .. versionchanged:: 0.10
   home: http://github.com/sci-bots/{{ PKG_NAME }}
-  #: .. versionchanged:: X.X.X
+  #: .. versionchanged:: 0.10
   license: BSD-3
