@@ -43,4 +43,5 @@ requirements:
 
 about:
   home: http://github.com/wheeler-microfluidics/{{ PKG_NAME }}
-  license: GPL
+  #: .. versionchanged:: X.X.X
+  license: BSD-3
