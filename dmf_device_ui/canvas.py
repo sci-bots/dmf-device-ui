@@ -11,6 +11,7 @@ from pygst_utils.video_view import np_to_cairo
 from svg_model import compute_shape_centers
 from svg_model.color import hex_color_to_rgba
 import cairo
+import debounce
 import gtk
 import numpy as np
 import pandas as pd
@@ -27,7 +28,7 @@ class Route(object):
     device : microdrop.dmf_device.DmfDevice
     electrode_ids : list
         Ordered list of **connected** electrodes ids.
-        
+
         Represents an actuation sequence of electrodes that would support
         liquid movement between the first and last electrode.
     '''
@@ -41,7 +42,7 @@ class Route(object):
     def append(self, electrode_id):
         '''
         Append the specified electrode to the route.
-        
+
         The route is not modified (i.e., electrode is not appended) if
         electrode is not connected to the last electrode in the existing route.
 
@@ -222,6 +223,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.set_surface('registration', self.render_registration())
 
     def create_ui(self):
+        '''
+        .. versionchanged:: 0.9
+            Update device registration in real-time while dragging video
+            control point to new position.
+        '''
         super(DmfDeviceCanvas, self).create_ui()
         self.video_sink = VideoSink(*[self.socket_info[k]
                                       for k in ['transport', 'host', 'port']])
@@ -239,6 +245,33 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                         columns=['surface', 'alpha'],
                                         index=pd.Index(surface_names,
                                                        name='name'))
+
+        def _update_registration(event):
+            try:
+                start_event = self.start_event.copy()
+                self.start_event = event.copy()
+                self.emit('point-pair-selected', {'start_event': start_event,
+                                                  'end_event': event})
+            except AttributeError:
+                # Mouse button was released, causing `self.start_event` to be
+                # `None` before event was handled here.
+                pass
+
+        # Debounce calls to `_update_registration` function to prevent too many
+        # calls being triggered from mouse movement events.
+        update_registration = debounce.Debounce(_update_registration, wait=10)
+
+        def _on_mouse_move(area, event):
+            # XXX Need to make a copy of the event here since the original
+            # event will be deallocated before the debounced
+            # `update_registration` function is called.
+            event = event.copy()
+
+            if self.mode == 'register_video' and self.start_event is not None:
+                update_registration(event.copy())
+
+        # Connect video registration update event to mouse movement event.
+        self.widget.connect("motion_notify_event", _on_mouse_move)
 
     def reset_canvas(self, width, height):
         super(DmfDeviceCanvas, self).reset_canvas(width, height)
