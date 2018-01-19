@@ -58,6 +58,7 @@ test:
     - dmf_device_ui.view
 
 about:
-  home: http://github.com/wheeler-microfluidics/{{ PKG_NAME }}
+  #: .. versionchanged:: X.X.X
+  home: http://github.com/sci-bots/{{ PKG_NAME }}
   #: .. versionchanged:: X.X.X
   license: BSD-3
