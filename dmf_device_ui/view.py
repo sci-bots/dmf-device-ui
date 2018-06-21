@@ -196,8 +196,15 @@ class DmfDeviceViewBase(SlaveView):
         self.info_slave.channels = ''
 
     def on_canvas_slave__electrode_selected(self, slave, data):
+        '''
+        .. versionchanged:: X.X.X
+            Clear any temporary routes (drawn while mouse is down) from routes
+            list.
+        '''
         if self.plugin is None:
             return
+        df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
+        self.on_routes_set(df_routes)
         state = self.canvas_slave.electrode_states.get(data['electrode_id'], 0)
         self.plugin.execute_async('microdrop.electrode_controller_plugin',
                                   'set_electrode_states',
@@ -215,6 +222,11 @@ class DmfDeviceViewBase(SlaveView):
 
         Note that the droplet routes for a step are stored in a frame/table in
         the `DmfDeviceController` step options.
+
+
+        .. versionchanged:: X.X.X
+            Clear any temporary routes (drawn while mouse is down) from routes
+            list.
         '''
         import networkx as nx
 
@@ -223,6 +235,8 @@ class DmfDeviceViewBase(SlaveView):
 
         if self.canvas_slave.device is None or self.plugin is None:
             return
+        df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
+        self.on_routes_set(df_routes)
         try:
             shortest_path = self.canvas_slave.device.find_path(source_id,
                                                                target_id)
@@ -238,7 +252,19 @@ class DmfDeviceViewBase(SlaveView):
                                   'add_route', drop_route=route.electrode_ids)
 
     def on_canvas_slave__route_electrode_added(self, slave, electrode_id):
+        '''
+        .. versionchanged:: X.X.X
+            Draw temporary route currently being formed.
+        '''
         logger.debug('Route electrode added: %s', electrode_id)
+        if slave._route.electrode_ids is None:
+            return
+        df_route = pd.DataFrame([[-1, e, i] for i, e in
+                                 enumerate(slave._route.electrode_ids)],
+                                columns=['route_i', 'electrode_i',
+                                         'transition_i'])
+        df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
+        self.on_routes_set(pd.concat([df_routes, df_route]))
 
     def on_canvas_slave__clear_routes(self, slave, electrode_id):
         def refresh_routes(reply):
