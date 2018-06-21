@@ -840,6 +840,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def on_widget__button_press_event(self, widget, event):
         '''
         Called when any mouse button is pressed.
+
+
+        .. versionchanged:: 0.11
+            Do not trigger `route-electrode-added` event if `ALT` key is
+            pressed.
         '''
         if self.mode == 'register_video' and event.button == 1:
             self.start_event = event.copy()
@@ -848,13 +853,15 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             shape = self.canvas.find_shape(event.x, event.y)
 
             if shape is None: return
+            state = event.get_state()
             if event.button == 1:
-                # `<Alt>` key is held down.
                 # Start a new route.
                 self._route = Route(self.device)
                 self._route.append(shape)
-                self.emit('route-electrode-added', shape)
                 self.last_pressed = shape
+                if not (state & gtk.gdk.MOD1_MASK):
+                    # `<Alt>` key is not held down.
+                    self.emit('route-electrode-added', shape)
 
     def on_widget__button_release_event(self, widget, event):
         '''
@@ -888,7 +895,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                     self._route = None
                 elif (event.get_state() == (gtk.gdk.MOD1_MASK |
                                             gtk.gdk.BUTTON1_MASK) and
-                    self.last_pressed != shape):
+                      self.last_pressed != shape):
+                    # `<Alt>` key was held down.
                     self.emit('electrode-pair-selected',
                               {'source_id': self.last_pressed, 'target_id': shape,
                                'event': event.copy()})
@@ -1088,6 +1096,11 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def on_widget__motion_notify_event(self, widget, event):
         '''
         Called when mouse pointer is moved within drawing area.
+
+
+        .. versionchanged:: 0.11
+            Do not trigger `route-electrode-added` event if `ALT` key is
+            pressed.
         '''
         if self.canvas is None:
             # Canvas has not been initialized.  Nothing to do.
@@ -1116,9 +1129,10 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 # Entering shape
                 self.last_hovered = shape
 
-                # `<Alt>` key was held down.
                 if self._route is not None:
-                    if self._route.append(shape):
+                    if self._route.append(shape) and not (event.get_state() &
+                                                          gtk.gdk.MOD1_MASK):
+                        # `<Alt>` key was not held down.
                         self.emit('route-electrode-added', shape)
 
                 self.emit('electrode-mouseover', {'electrode_id':

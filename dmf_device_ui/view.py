@@ -1,6 +1,5 @@
 # -*- coding: utf-8 -*-
 from datetime import datetime
-from subprocess import Popen
 import logging
 import subprocess as sp
 import sys
@@ -175,6 +174,7 @@ class DmfDeviceViewBase(SlaveView):
     def terminate(self):
         self.cleanup()
         gtk.main_quit()
+
     ###########################################################################
     # Device canvas event callbacks
     ###########################################################################
@@ -196,13 +196,21 @@ class DmfDeviceViewBase(SlaveView):
         self.info_slave.channels = ''
 
     def on_canvas_slave__electrode_selected(self, slave, data):
+        '''
+        .. versionchanged:: 0.11
+            Clear any temporary routes (drawn while mouse is down) from routes
+            list.
+        '''
         if self.plugin is None:
             return
+        df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
+        self.on_routes_set(df_routes)
         state = self.canvas_slave.electrode_states.get(data['electrode_id'], 0)
         self.plugin.execute_async('microdrop.electrode_controller_plugin',
-                                  'set_electrode_states', electrode_states=
-                                  pd.Series([not state],
-                                            index=[data['electrode_id']]))
+                                  'set_electrode_states',
+                                  electrode_states=pd
+                                  .Series([not state],
+                                          index=[data['electrode_id']]))
 
     def on_canvas_slave__electrode_pair_selected(self, slave, data):
         '''
@@ -214,6 +222,11 @@ class DmfDeviceViewBase(SlaveView):
 
         Note that the droplet routes for a step are stored in a frame/table in
         the `DmfDeviceController` step options.
+
+
+        .. versionchanged:: 0.11
+            Clear any temporary routes (drawn while mouse is down) from routes
+            list.
         '''
         import networkx as nx
 
@@ -222,6 +235,8 @@ class DmfDeviceViewBase(SlaveView):
 
         if self.canvas_slave.device is None or self.plugin is None:
             return
+        df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
+        self.on_routes_set(df_routes)
         try:
             shortest_path = self.canvas_slave.device.find_path(source_id,
                                                                target_id)
@@ -237,7 +252,19 @@ class DmfDeviceViewBase(SlaveView):
                                   'add_route', drop_route=route.electrode_ids)
 
     def on_canvas_slave__route_electrode_added(self, slave, electrode_id):
+        '''
+        .. versionchanged:: 0.11
+            Draw temporary route currently being formed.
+        '''
         logger.debug('Route electrode added: %s', electrode_id)
+        if slave._route.electrode_ids is None:
+            return
+        df_route = pd.DataFrame([[-1, e, i] for i, e in
+                                 enumerate(slave._route.electrode_ids)],
+                                columns=['route_i', 'electrode_i',
+                                         'transition_i'])
+        df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
+        self.on_routes_set(pd.concat([df_routes, df_route]))
 
     def on_canvas_slave__clear_routes(self, slave, electrode_id):
         def refresh_routes(reply):
@@ -252,10 +279,10 @@ class DmfDeviceViewBase(SlaveView):
         if self.plugin is not None:
             (self.plugin.execute('microdrop.electrode_controller_plugin',
                                  'set_electrode_states',
-                                 electrode_states=
-                                 pd.Series(0, dtype=int,
-                                           index=self.canvas_slave.device
-                                           .electrodes)))
+                                 electrode_states=pd
+                                 .Series(0, dtype=int,
+                                         index=self.canvas_slave.device
+                                         .electrodes)))
 
     def on_canvas_slave__execute_routes(self, slave, electrode_id):
         self.plugin.execute_async('droplet_planning_plugin',
@@ -269,7 +296,7 @@ class DmfDeviceViewBase(SlaveView):
             # Decode content to raise error, if necessary.
             try:
                 modified = decode_content_data(reply)
-            except:
+            except Exception:
                 logger.error('Error setting electrode channels: %s: %s',
                              electrode_id, channels, exc_info=True)
             else:
@@ -350,7 +377,7 @@ class DmfDeviceViewBase(SlaveView):
                                   'get_device')
         # Periodically process outstanding plugin socket messages.
         self.socket_timeout_id = gtk.timeout_add(25, self.plugin.check_sockets)
-        ## Periodically ping hub to verify connection is alive.
+        # Periodically ping hub to verify connection is alive.
         self.heartbeat_timeout_id = gtk.timeout_add(2000, self.ping_hub)
 
     def on_device_loaded(self, device):
@@ -413,7 +440,7 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_transform_slave__transform_rotate_right(self, slave):
         self.canvas_slave.df_canvas_corners[:] = np.roll(self.canvas_slave
-                                                        .df_canvas_corners
+                                                         .df_canvas_corners
                                                          .values, -1, axis=0)
         self.canvas_slave.update_transforms()
 
@@ -431,7 +458,7 @@ class DmfDeviceViewBase(SlaveView):
             # Save current state of corners to allow *undo*.
             corners_state = {'df_frame_corners':
                              self.canvas_slave.df_frame_corners.copy(),
-                            'df_canvas_corners':
+                             'df_canvas_corners':
                              self.canvas_slave.df_canvas_corners.copy()}
             self.modify_corners_undo.append(corners_state)
 
@@ -449,7 +476,7 @@ class DmfDeviceViewBase(SlaveView):
             # Save current state of corners to allow *redo*.
             corners_state = {'df_frame_corners':
                              self.canvas_slave.df_frame_corners.copy(),
-                            'df_canvas_corners':
+                             'df_canvas_corners':
                              self.canvas_slave.df_canvas_corners.copy()}
             self.modify_corners_redo.append(corners_state)
 
@@ -511,8 +538,8 @@ class DmfDeviceViewBase(SlaveView):
         self.video_info_slave.dropped_rate = dropped_rate
 
     def on_canvas_slave__point_pair_selected(self, slave, data):
-        if (slave.canvas is None or not self.transform_slave.modify or
-            not slave.enabled):
+        if any([slave.canvas is None or not self.transform_slave.modify or not
+                slave.enabled]):
             return
         # Translate canvas event coordinates to shape coordinate space.
         transform = slave.canvas.canvas_to_shapes_transform
@@ -560,7 +587,7 @@ class DmfDeviceViewBase(SlaveView):
             # Decode content to raise error, if necessary.
             try:
                 decode_content_data(reply)
-            except:
+            except Exception:
                 logger.error('Electrode command error: %s.%s(%r)', group,
                              command, electrode_data['electrode_id'],
                              exc_info=True)
@@ -576,7 +603,7 @@ class DmfDeviceViewBase(SlaveView):
             # Decode content to raise error, if necessary.
             try:
                 decode_content_data(reply)
-            except:
+            except Exception:
                 logger.error('Route command error: %s.%s(%r)', group, command,
                              route_data['route_ids'], exc_info=True)
         self.plugin.execute_async(group, command,
