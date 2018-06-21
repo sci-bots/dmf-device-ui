@@ -197,7 +197,7 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_canvas_slave__electrode_selected(self, slave, data):
         '''
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11
             Clear any temporary routes (drawn while mouse is down) from routes
             list.
         '''
@@ -224,7 +224,7 @@ class DmfDeviceViewBase(SlaveView):
         the `DmfDeviceController` step options.
 
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11
             Clear any temporary routes (drawn while mouse is down) from routes
             list.
         '''
@@ -253,7 +253,7 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_canvas_slave__route_electrode_added(self, slave, electrode_id):
         '''
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11
             Draw temporary route currently being formed.
         '''
         logger.debug('Route electrode added: %s', electrode_id)

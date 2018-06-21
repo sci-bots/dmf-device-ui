@@ -842,7 +842,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when any mouse button is pressed.
 
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11
             Do not trigger `route-electrode-added` event if `ALT` key is
             pressed.
         '''
@@ -1098,7 +1098,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when mouse pointer is moved within drawing area.
 
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11
             Do not trigger `route-electrode-added` event if `ALT` key is
             pressed.
         '''
