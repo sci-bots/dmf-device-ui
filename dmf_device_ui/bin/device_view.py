@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
+from contextlib import closing
 import json
-import pkg_resources
+import pkgutil
 import sys
 
 import gtk
@@ -51,7 +52,8 @@ def main():
     logging.basicConfig(level=logging.INFO)
 
     args = parse_args()
-    allocation = None if args.allocation is None else json.loads(args.allocation)
+    allocation = (None if args.allocation is None
+                  else json.loads(args.allocation))
     canvas = DmfDeviceCanvas(connections_color=args.connections_color,
                              connections_alpha=args.connections_alpha,
                              padding_fraction=args.padding_fraction,
@@ -74,14 +76,21 @@ def main():
     def init_window_titlebar(widget):
         '''
         Set window title and icon.
+
+        .. versionchanged:: v0.11.1
+            Load icon from string to support loading from ``.zip`` file.
         '''
         view.widget.parent.set_title('DMF device user interface')
-        try:
-            (view.widget.parent
-            .set_icon_from_file(pkg_resources.resource_filename('microdrop',
-                                                                'microdrop.ico')))
-        except ImportError:
-            pass
+
+        # [Load icon from string][1] to support loading from `.zip` file.
+        #
+        # [1]: https://bytes.com/topic/python/answers/29401-pygtk-creating-pixbuf-image-data#post109157
+        icon_str = pkgutil.get_data('microdrop', 'microdrop.ico')
+        with closing(gtk.gdk.PixbufLoader('ico')) as loader:
+            loader.write(icon_str)
+        icon_pixbuf = loader.get_pixbuf()
+        view.widget.parent.set_icon(icon_pixbuf)
+
     view.widget.connect('realize', init_window_titlebar)
     if args.command == 'fixed':
         logging.info('Register connect_plugin')
