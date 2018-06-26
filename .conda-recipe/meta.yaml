@@ -25,7 +25,8 @@ requirements:
     - pygst_utils >=0.3.post12
     - svg-model >=0.6
     #: ..versionchanged:: 0.7
-    - wheeler.pygtkhelpers >=0.20
+    #: ..versionchanged:: 0.11.2
+    - wheeler.pygtkhelpers >=0.21.1
     #: ..versionchanged:: 0.6.2
     - zmq-plugin >=0.3
 
@@ -41,7 +42,8 @@ requirements:
     - pygst_utils >=0.3.post12
     - svg-model >=0.6
     #: ..versionchanged:: 0.7
-    - wheeler.pygtkhelpers >=0.20
+    #: ..versionchanged:: 0.11.2
+    - wheeler.pygtkhelpers >=0.21.1
     #: ..versionchanged:: 0.6.2
     - zmq-plugin >=0.3
 
