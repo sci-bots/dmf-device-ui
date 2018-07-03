@@ -106,6 +106,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('route-command', str, str, object)
     gsignal('route-electrode-added', object)
     gsignal('route-selected', object)
+    #: .. versionadded:: X.X.X
+    gsignal('routes-set', object)
     gsignal('set-electrode-channels', str, object) # electrode_id, channels
     gsignal('surface-rendered', str, object)
     gsignal('surfaces-reset', object)
@@ -173,6 +175,24 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.route_commands = OrderedDict()
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
                                               **kwargs)
+
+    @property
+    def df_routes(self):
+        '''
+        .. versionadded:: X.X.X
+        '''
+        return self._df_routes
+
+    @df_routes.setter
+    def df_routes(self, value):
+        '''
+        .. versionadded:: X.X.X
+        '''
+        self._df_routes = value
+        try:
+            self.emit('routes-set', self._df_routes.copy())
+        except TypeError:
+            pass
 
     def reset_canvas_corners(self):
         self.df_canvas_corners = (self.default_corners
@@ -866,6 +886,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     def on_widget__button_release_event(self, widget, event):
         '''
         Called when any mouse button is released.
+
+
+        .. versionchanged:: X.X.X
+            Always reset pending route, regardless of whether a route was
+            completed.  This includes a) removing temporary routes from routes
+            table, and b) resetting the state of the current route electrode
+            queue.  This fixes
+            https://github.com/sci-bots/microdrop/issues/256.
         '''
         event = event.copy()
         if self.mode == 'register_video' and (event.button == 1 and
@@ -875,38 +903,43 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             self.start_event = None
             return
         elif self.mode == 'control':
+            # XXX Negative `route_i` corresponds to temporary route being
+            # drawn.  Since release of mouse button terminates route drawing,
+            # clear any rows corresponding to negative `route_i` values from
+            # the routes table.
+            self.df_routes = self.df_routes.loc[self.df_routes.route_i >=
+                                                0].copy()
             shape = self.canvas.find_shape(event.x, event.y)
 
-            if shape is None: return
+            if shape is not None:
+                electrode_data = {'electrode_id': shape, 'event': event.copy()}
+                if event.button == 1:
+                    if gtk.gdk.BUTTON1_MASK == event.get_state():
+                        if self._route.append(shape):
+                            self.emit('route-electrode-added', shape)
+                        if len(self._route.electrode_ids) == 1:
+                            # Single electrode, so select electrode.
+                            self.emit('electrode-selected', electrode_data)
+                        else:
+                            # Multiple electrodes, so select route.
+                            route = self._route
+                            self.emit('route-selected', route)
+                    elif (event.get_state() == (gtk.gdk.MOD1_MASK |
+                                                gtk.gdk.BUTTON1_MASK) and
+                        self.last_pressed != shape):
+                        # `<Alt>` key was held down.
+                        self.emit('electrode-pair-selected',
+                                {'source_id': self.last_pressed,
+                                 'target_id': shape, 'event': event.copy()})
+                    self.last_pressed = None
+                elif event.button == 3:
+                    # Create right-click pop-up menu.
+                    menu = self.create_context_menu(event, shape)
 
-            electrode_data = {'electrode_id': shape, 'event': event.copy()}
-            if event.button == 1:
-                if gtk.gdk.BUTTON1_MASK == event.get_state():
-                    if self._route.append(shape):
-                        self.emit('route-electrode-added', shape)
-                    if len(self._route.electrode_ids) == 1:
-                        # Single electrode, so select electrode.
-                        self.emit('electrode-selected', electrode_data)
-                    else:
-                        # Multiple electrodes, so select route.
-                        route = self._route
-                        self.emit('route-selected', route)
-                    # Clear route.
-                    self._route = None
-                elif (event.get_state() == (gtk.gdk.MOD1_MASK |
-                                            gtk.gdk.BUTTON1_MASK) and
-                      self.last_pressed != shape):
-                    # `<Alt>` key was held down.
-                    self.emit('electrode-pair-selected',
-                              {'source_id': self.last_pressed, 'target_id': shape,
-                               'event': event.copy()})
-                self.last_pressed = None
-            elif event.button == 3:
-                # Create right-click pop-up menu.
-                menu = self.create_context_menu(event, shape)
-
-                # Display menu popup
-                menu.popup(None, None, None, event.button, event.time)
+                    # Display menu popup
+                    menu.popup(None, None, None, event.button, event.time)
+            # Clear route.
+            self._route = None
 
     def create_context_menu(self, event, shape):
         '''

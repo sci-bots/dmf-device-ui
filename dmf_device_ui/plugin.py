@@ -22,6 +22,11 @@ class DevicePlugin(Plugin):
     def check_sockets(self):
         '''
         Check for new messages on sockets and respond accordingly.
+
+
+        .. versionchanged:: X.X.X
+            Update routes table by setting ``df_routes`` property of
+            :attr:`parent.canvas_slave`.
         '''
         try:
             msg_frames = (self.command_socket
@@ -69,8 +74,7 @@ class DevicePlugin(Plugin):
                                        'get_routes')
                 elif msg['content']['command'] in ('get_routes', ):
                     data = decode_content_data(msg)
-                    #self.emit('routes-set', data)
-                    self.parent.on_routes_set(data)
+                    self.parent.canvas_slave.df_routes = data
             else:
                 self.most_recent = msg_json
         except zmq.Again:
