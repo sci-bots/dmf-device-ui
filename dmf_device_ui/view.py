@@ -200,11 +200,19 @@ class DmfDeviceViewBase(SlaveView):
         .. versionchanged:: 0.11
             Clear any temporary routes (drawn while mouse is down) from routes
             list.
+
+        .. versionchanged:: 0.11.3
+            Clear temporary routes by setting ``df_routes`` property of
+            :attr:`canvas_slave`.
         '''
         if self.plugin is None:
             return
-        df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
-        self.on_routes_set(df_routes)
+        # XXX Negative `route_i` corresponds to temporary route being
+        # drawn.  Since electrode selection terminates route drawing, clear any
+        # rows corresponding to negative `route_i` values from the routes
+        # table.
+        slave.df_routes = slave.df_routes.loc[slave.df_routes.route_i >=
+                                              0].copy()
         state = self.canvas_slave.electrode_states.get(data['electrode_id'], 0)
         self.plugin.execute_async('microdrop.electrode_controller_plugin',
                                   'set_electrode_states',
@@ -227,6 +235,10 @@ class DmfDeviceViewBase(SlaveView):
         .. versionchanged:: 0.11
             Clear any temporary routes (drawn while mouse is down) from routes
             list.
+
+        .. versionchanged:: 0.11.3
+            Clear temporary routes by setting ``df_routes`` property of
+            :attr:`canvas_slave`.
         '''
         import networkx as nx
 
@@ -235,8 +247,12 @@ class DmfDeviceViewBase(SlaveView):
 
         if self.canvas_slave.device is None or self.plugin is None:
             return
-        df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
-        self.on_routes_set(df_routes)
+        # XXX Negative `route_i` corresponds to temporary route being
+        # drawn.  Since electrode pair selection terminates route drawing,
+        # clear any rows corresponding to negative `route_i` values from the
+        # routes table.
+        slave.df_routes = slave.df_routes.loc[slave.df_routes.route_i >=
+                                              0].copy()
         try:
             shortest_path = self.canvas_slave.device.find_path(source_id,
                                                                target_id)
@@ -255,6 +271,10 @@ class DmfDeviceViewBase(SlaveView):
         '''
         .. versionchanged:: 0.11
             Draw temporary route currently being formed.
+
+        .. versionchanged:: 0.11.3
+            Update routes table by setting ``df_routes`` property of
+            :attr:`canvas_slave`.
         '''
         logger.debug('Route electrode added: %s', electrode_id)
         if slave._route.electrode_ids is None:
@@ -263,8 +283,11 @@ class DmfDeviceViewBase(SlaveView):
                                  enumerate(slave._route.electrode_ids)],
                                 columns=['route_i', 'electrode_i',
                                          'transition_i'])
+        # XXX Negative `route_i` corresponds to temporary route being
+        # drawn.  Append row entries for temporary route to existing routes
+        # table.
         df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
-        self.on_routes_set(pd.concat([df_routes, df_route]))
+        self.canvas_slave.df_routes = pd.concat([df_routes, df_route])
 
     def on_canvas_slave__clear_routes(self, slave, electrode_id):
         def refresh_routes(reply):
@@ -413,16 +436,6 @@ class DmfDeviceViewBase(SlaveView):
                                                                .df_surfaces)
             gtk.idle_add(self.canvas_slave.draw)
 
-    def on_routes_set(self, df_routes):
-        if not self.canvas_slave.df_routes.equals(df_routes):
-            self.canvas_slave.df_routes = df_routes
-            self.canvas_slave.set_surface('routes',
-                                          self.canvas_slave.render_routes())
-            self.canvas_slave.cairo_surface = flatten_surfaces(self
-                                                               .canvas_slave
-                                                               .df_surfaces)
-            gtk.idle_add(self.canvas_slave.draw)
-
     ###########################################################################
     # ## Slave signal handling ##
     def on_transform_slave__transform_reset(self, slave):
@@ -536,6 +549,16 @@ class DmfDeviceViewBase(SlaveView):
     def on_frame_rate_update(self, slave, frame_rate, dropped_rate):
         self.video_info_slave.frames_per_second = frame_rate
         self.video_info_slave.dropped_rate = dropped_rate
+
+    def on_canvas_slave__routes_set(self, slave, df_routes):
+        '''
+        .. versionadded:: 0.11.3
+        '''
+        self.canvas_slave.set_surface('routes',
+                                      self.canvas_slave.render_routes())
+        self.canvas_slave.cairo_surface = flatten_surfaces(self.canvas_slave
+                                                           .df_surfaces)
+        gtk.idle_add(self.canvas_slave.draw)
 
     def on_canvas_slave__point_pair_selected(self, slave, data):
         if any([slave.canvas is None or not self.transform_slave.modify or not
