@@ -201,7 +201,7 @@ class DmfDeviceViewBase(SlaveView):
             Clear any temporary routes (drawn while mouse is down) from routes
             list.
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11.3
             Clear temporary routes by setting ``df_routes`` property of
             :attr:`canvas_slave`.
         '''
@@ -236,7 +236,7 @@ class DmfDeviceViewBase(SlaveView):
             Clear any temporary routes (drawn while mouse is down) from routes
             list.
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11.3
             Clear temporary routes by setting ``df_routes`` property of
             :attr:`canvas_slave`.
         '''
@@ -272,7 +272,7 @@ class DmfDeviceViewBase(SlaveView):
         .. versionchanged:: 0.11
             Draw temporary route currently being formed.
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11.3
             Update routes table by setting ``df_routes`` property of
             :attr:`canvas_slave`.
         '''
@@ -552,7 +552,7 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_canvas_slave__routes_set(self, slave, df_routes):
         '''
-        .. versionadded:: X.X.X
+        .. versionadded:: 0.11.3
         '''
         self.canvas_slave.set_surface('routes',
                                       self.canvas_slave.render_routes())

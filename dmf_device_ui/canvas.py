@@ -106,7 +106,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('route-command', str, str, object)
     gsignal('route-electrode-added', object)
     gsignal('route-selected', object)
-    #: .. versionadded:: X.X.X
+    #: .. versionadded:: 0.11.3
     gsignal('routes-set', object)
     gsignal('set-electrode-channels', str, object) # electrode_id, channels
     gsignal('surface-rendered', str, object)
@@ -179,14 +179,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     @property
     def df_routes(self):
         '''
-        .. versionadded:: X.X.X
+        .. versionadded:: 0.11.3
         '''
         return self._df_routes
 
     @df_routes.setter
     def df_routes(self, value):
         '''
-        .. versionadded:: X.X.X
+        .. versionadded:: 0.11.3
         '''
         self._df_routes = value
         try:
@@ -888,7 +888,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         Called when any mouse button is released.
 
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11.3
             Always reset pending route, regardless of whether a route was
             completed.  This includes a) removing temporary routes from routes
             table, and b) resetting the state of the current route electrode

@@ -24,7 +24,7 @@ class DevicePlugin(Plugin):
         Check for new messages on sockets and respond accordingly.
 
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.11.3
             Update routes table by setting ``df_routes`` property of
             :attr:`parent.canvas_slave`.
         '''
