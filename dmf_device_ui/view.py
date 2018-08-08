@@ -410,31 +410,48 @@ class DmfDeviceViewBase(SlaveView):
         self.plugin.request_refresh()
 
     def on_electrode_states_updated(self, states):
-        updated_electrode_states = \
+        '''
+        .. versionchanged:: X.X.X
+            Refactor to use :meth:`on_electrode_states_set`.
+        '''
+        states['electrode_states'] = \
             states['electrode_states'].combine_first(self.canvas_slave
                                                      .electrode_states)
-        if not (self.canvas_slave.electrode_states
-                .equals(updated_electrode_states)):
-            self.canvas_slave.electrode_states = updated_electrode_states
-            self.canvas_slave.set_surface('actuated_shapes',
-                                          self.canvas_slave
-                                          .render_actuated_shapes())
-            self.canvas_slave.cairo_surface = flatten_surfaces(self
-                                                               .canvas_slave
-                                                               .df_surfaces)
-            gtk.idle_add(self.canvas_slave.draw)
+        self.on_electrode_states_set(states)
 
     def on_electrode_states_set(self, states):
-        if not (self.canvas_slave.electrode_states
+        '''
+        Render and draw updated **static** electrode actuations layer on
+        canvas.
+        '''
+        if (self.canvas_slave.electrode_states
                 .equals(states['electrode_states'])):
-            self.canvas_slave.electrode_states = states['electrode_states']
-            self.canvas_slave.set_surface('actuated_shapes',
-                                          self.canvas_slave
-                                          .render_actuated_shapes())
-            self.canvas_slave.cairo_surface = flatten_surfaces(self
-                                                               .canvas_slave
-                                                               .df_surfaces)
-            gtk.idle_add(self.canvas_slave.draw)
+            return
+
+        self.canvas_slave.electrode_states = states['electrode_states']
+
+        surface = self.canvas_slave.render_static_electrode_state_shapes()
+        self.canvas_slave.set_surface('static_electrode_state_shapes', surface)
+        self.canvas_slave.cairo_surface = flatten_surfaces(self.canvas_slave
+                                                           .df_surfaces)
+        gobject.idle_add(self.canvas_slave.draw)
+
+    def on_dynamic_electrode_states_set(self, states):
+        '''
+        Render and draw updated **dynamic** electrode actuations layer on
+        canvas.
+
+
+        .. versionadded:: X.X.X
+        '''
+        self.canvas_slave._dynamic_electrodes = states
+
+        surface = self.canvas_slave.render_dynamic_electrode_state_shapes()
+        self.canvas_slave.set_surface('dynamic_electrode_state_shapes',
+                                      surface)
+        self.canvas_slave.cairo_surface = flatten_surfaces(self.canvas_slave
+                                                           .df_surfaces)
+        gobject.idle_add(self.canvas_slave.draw)
 
     ###########################################################################
     # ## Slave signal handling ##

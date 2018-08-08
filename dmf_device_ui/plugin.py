@@ -27,6 +27,11 @@ class DevicePlugin(Plugin):
         .. versionchanged:: 0.11.3
             Update routes table by setting ``df_routes`` property of
             :attr:`parent.canvas_slave`.
+
+        .. versionchanged:: X.X.X
+            Update ``dynamic_electrode_state_shapes`` layer of
+            :attr:`parent.canvas_slave` when dynamic electrode actuation states
+            change.
         '''
         try:
             msg_frames = (self.command_socket
@@ -66,6 +71,10 @@ class DevicePlugin(Plugin):
                     else:
                         #self.emit('electrode-states-set', data)
                         self.parent.on_electrode_states_set(data)
+                elif msg['content']['command'] == \
+                    'set_dynamic_electrode_states':
+                    data = decode_content_data(msg)
+                    self.parent.on_dynamic_electrode_states_set(data)
             elif ((source == 'droplet_planning_plugin') and
                   (msg_type == 'execute_reply')):
                 msg = json.loads(msg_json)
