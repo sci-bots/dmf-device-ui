@@ -155,6 +155,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         # Save color for drawing connections.
         self.connections_color = connections_color
 
+        #: ..versionadded:: 0.12
+        self._dynamic_electrodes = pd.Series()
         self.reset_states()
         self.reset_routes()
 
@@ -173,6 +175,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                         #group='microdrop.device_info_plugin')
         # Registered route commands
         self.route_commands = OrderedDict()
+
         super(DmfDeviceCanvas, self).__init__(df_shapes, self.shape_i_column,
                                               **kwargs)
 
@@ -247,6 +250,10 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         .. versionchanged:: 0.9
             Update device registration in real-time while dragging video
             control point to new position.
+
+        .. versionchanged:: 0.12
+            Add ``dynamic_electrode_state_shapes`` layer to show dynamic
+            electrode actuations.
         '''
         super(DmfDeviceCanvas, self).create_ui()
         self.video_sink = VideoSink(*[self.socket_info[k]
@@ -259,7 +266,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                gtk.gdk.KEY_RELEASE_MASK)
         # Create initial (empty) cairo surfaces.
         surface_names = ('background', 'shapes', 'connections', 'routes',
-                         'channel_labels', 'actuated_shapes', 'registration')
+                         'channel_labels', 'static_electrode_state_shapes',
+                         'dynamic_electrode_state_shapes', 'registration')
         self.df_surfaces = pd.DataFrame([[self.get_surface(), 1.]
                                          for i in xrange(len(surface_names))],
                                         columns=['surface', 'alpha'],
@@ -545,13 +553,67 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     ###########################################################################
     # Render methods
-    def render_actuated_shapes(self, df_shapes=None, shape_scale=0.8):
+    def render_dynamic_electrode_state_shapes(self):
         '''
-        Render actuated electrode shapes.
+        Render **dynamic** states reported by the electrode controller.
 
-        Draw each electrode shape filled white.
+        **Dynamic** electrode states are only applied while a protocol is
+        running -- _not_ while in real-time programming mode.
 
-        See also `render_shapes(...)`.
+        See also :meth:`render_electrode_shapes()`.
+
+
+        .. versionadded:: 0.12
+        '''
+        df_shapes = self.canvas.df_canvas_shapes.copy()
+        # Only include shapes for electrodes reported as actuated.
+        on_electrodes = self._dynamic_electrodes[self._dynamic_electrodes > 0]
+        df_shapes = (df_shapes.set_index('id').loc[on_electrodes.index]
+                     .reset_index())
+
+        return self.render_electrode_shapes(df_shapes=df_shapes,
+                                            shape_scale=0.75,
+                                            # Lignt blue
+                                            fill=(136 / 255.,
+                                                  189 / 255.,
+                                                  230 / 255.))
+
+    def render_static_electrode_state_shapes(self):
+        '''
+        Render **static** states reported by the electrode controller.
+
+        **Static** electrode states are applied while a protocol is **running**
+        _or_ while **real-time** control is activated.
+
+        See also :meth:`render_electrode_shapes()`.
+
+
+        .. versionadded:: 0.12
+        '''
+        df_shapes = self.canvas.df_canvas_shapes.copy()
+        if self.electrode_states.shape[0]:
+            df_shapes['state'] = self.electrode_states.ix[df_shapes.id].values
+        else:
+            df_shapes['state'] = 0
+        df_shapes = df_shapes.loc[df_shapes.state > 0].dropna(subset=['state'])
+
+        return self.render_electrode_shapes(df_shapes=df_shapes)
+
+    def render_electrode_shapes(self, df_shapes=None, shape_scale=0.8,
+                                fill=(1, 1, 1)):
+        '''
+        Render electrode state shapes.
+
+        By default, draw each electrode shape filled white.
+
+        See also :meth:`render_shapes()`.
+
+        Parameters
+        ----------
+        df_shapes = : pandas.DataFrame
+
+
+        .. versionadded:: 0.12
         '''
         surface = self.get_surface()
         if df_shapes is None:
@@ -559,9 +621,6 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                 df_shapes = self.canvas.df_canvas_shapes
             else:
                 return surface
-        if not self.electrode_states.shape[0]:
-            # There are no actuated electrodes.  Nothing to draw.
-            return surface
         if 'x_center' not in df_shapes or 'y_center' not in df_shapes:
             # No center points have been computed for shapes.
             return surface
@@ -574,15 +633,10 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                                  df_shapes[['x_center_offset',
                                             'y_center_offset']].values *
                                  shape_scale)
-        df_shapes['state'] = self.electrode_states.ix[df_shapes.id].values
 
-        # Find actuated shapes.
-        df_actuated_shapes = (df_shapes.loc[df_shapes.state > 0]
-                              .dropna(subset=['state']))
-
-        for path_id, df_path_i in (df_actuated_shapes
-                                   .groupby(self.canvas.shape_i_columns)
-                                   [['x', 'y']]):
+        for path_id, df_path_i in (df_shapes.groupby(self.canvas
+                                                     .shape_i_columns)[['x',
+                                                                        'y']]):
             # Use attribute lookup for `x` and `y`, since it is considerably
             # faster than `get`-based lookup using columns name strings.
             vertices_x = df_path_i.x.values
@@ -593,7 +647,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             cairo_context.close_path()
 
             # Draw filled shape to indicate actuated electrode state.
-            cairo_context.set_source_rgba(1, 1, 1)
+            cairo_context.set_source_rgba(*fill)
             cairo_context.fill()
         return surface
 
@@ -641,7 +695,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         If video is disabled, draw white outline for each electrode and fill
         blue.
 
-        See also `render_actuated_shapes(...)`.
+        See also :meth:`render_electrode_state_shapes()`.
         '''
         surface = self.get_surface()
         if df_shapes is None:
@@ -772,10 +826,16 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.cairo_surface = flatten_surfaces(self.df_surfaces)
 
     def render(self):
+        '''
+        .. versionchanged:: 0.12
+            Add ``dynamic_electrode_state_shapes`` layer to show dynamic
+            electrode actuations.
+        '''
         # Render each layer and update data frame with new content for each
         # surface.
         surface_names = ('background', 'shapes', 'connections', 'routes',
-                         'channel_labels', 'actuated_shapes', 'registration')
+                         'channel_labels', 'static_electrode_state_shapes',
+                         'dynamic_electrode_state_shapes', 'registration')
         for k in surface_names:
             self.set_surface(k, getattr(self, 'render_' + k)())
         self.emit('surfaces-reset', self.df_surfaces)

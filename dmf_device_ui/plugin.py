@@ -6,6 +6,7 @@ from pygtkhelpers.delegates import SlaveView
 from pygtkhelpers.utils import gsignal
 from zmq_plugin.plugin import Plugin
 from zmq_plugin.schema import decode_content_data
+import gobject
 import gtk
 import zmq
 
@@ -27,6 +28,11 @@ class DevicePlugin(Plugin):
         .. versionchanged:: 0.11.3
             Update routes table by setting ``df_routes`` property of
             :attr:`parent.canvas_slave`.
+
+        .. versionchanged:: 0.12
+            Update ``dynamic_electrode_state_shapes`` layer of
+            :attr:`parent.canvas_slave` when dynamic electrode actuation states
+            change.
         '''
         try:
             msg_frames = (self.command_socket
@@ -66,6 +72,10 @@ class DevicePlugin(Plugin):
                     else:
                         #self.emit('electrode-states-set', data)
                         self.parent.on_electrode_states_set(data)
+                elif msg['content']['command'] == \
+                    'set_dynamic_electrode_states':
+                    data = decode_content_data(msg)
+                    self.parent.on_dynamic_electrode_states_set(data)
             elif ((source == 'droplet_planning_plugin') and
                   (msg_type == 'execute_reply')):
                 msg = json.loads(msg_json)
@@ -139,10 +149,15 @@ class DevicePlugin(Plugin):
         self.parent.disable_video()
 
     def on_execute__set_video_config(self, request):
+        '''
+        .. versionchanged:: 0.12
+            Accept empty video configuration as either `None` or an empty
+            `pandas.Series`.
+        '''
         data = decode_content_data(request)
         compare_fields = ['device_name', 'width', 'height', 'name', 'fourcc',
                           'framerate']
-        if data['video_config'] is None:
+        if data['video_config'] is None or not data['video_config'].shape[0]:
             i = None
         else:
             for i, row in self.parent.video_mode_slave.configs.iterrows():
@@ -167,11 +182,17 @@ class DevicePlugin(Plugin):
         return self.parent.canvas_slave.df_surfaces['alpha']
 
     def on_execute__set_surface_alphas(self, request):
+        '''
+        .. versionchanged:: 0.12
+            Queue redraw after setting surface alphas.
+        '''
         data = decode_content_data(request)
         logger.debug('[on_execute__set_surface_alphas] %s',
                      data['surface_alphas'])
         for name, alpha in data['surface_alphas'].iteritems():
             self.parent.canvas_slave.set_surface_alpha(name, alpha)
+        self.parent.canvas_slave.render()
+        gobject.idle_add(self.parent.canvas_slave.draw)
 
     def on_execute__clear_electrode_commands(self, request):
         data = decode_content_data(request)
