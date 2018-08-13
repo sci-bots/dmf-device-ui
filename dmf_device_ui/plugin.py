@@ -6,6 +6,7 @@ from pygtkhelpers.delegates import SlaveView
 from pygtkhelpers.utils import gsignal
 from zmq_plugin.plugin import Plugin
 from zmq_plugin.schema import decode_content_data
+import gobject
 import gtk
 import zmq
 
@@ -176,11 +177,17 @@ class DevicePlugin(Plugin):
         return self.parent.canvas_slave.df_surfaces['alpha']
 
     def on_execute__set_surface_alphas(self, request):
+        '''
+        .. versionchanged:: X.X.X
+            Queue redraw after setting surface alphas.
+        '''
         data = decode_content_data(request)
         logger.debug('[on_execute__set_surface_alphas] %s',
                      data['surface_alphas'])
         for name, alpha in data['surface_alphas'].iteritems():
             self.parent.canvas_slave.set_surface_alpha(name, alpha)
+        self.parent.canvas_slave.render()
+        gobject.idle_add(self.parent.canvas_slave.draw)
 
     def on_execute__clear_electrode_commands(self, request):
         data = decode_content_data(request)
