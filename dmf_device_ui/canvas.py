@@ -155,7 +155,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         # Save color for drawing connections.
         self.connections_color = connections_color
 
-        #: ..versionadded:: X.X.X
+        #: ..versionadded:: 0.12
         self._dynamic_electrodes = pd.Series()
         self.reset_states()
         self.reset_routes()
@@ -251,7 +251,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             Update device registration in real-time while dragging video
             control point to new position.
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.12
             Add ``dynamic_electrode_state_shapes`` layer to show dynamic
             electrode actuations.
         '''
@@ -563,7 +563,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         See also :meth:`render_electrode_shapes()`.
 
 
-        .. versionadded:: X.X.X
+        .. versionadded:: 0.12
         '''
         df_shapes = self.canvas.df_canvas_shapes.copy()
         # Only include shapes for electrodes reported as actuated.
@@ -588,7 +588,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         See also :meth:`render_electrode_shapes()`.
 
 
-        .. versionadded:: X.X.X
+        .. versionadded:: 0.12
         '''
         df_shapes = self.canvas.df_canvas_shapes.copy()
         if self.electrode_states.shape[0]:
@@ -613,7 +613,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         df_shapes = : pandas.DataFrame
 
 
-        .. versionadded:: X.X.X
+        .. versionadded:: 0.12
         '''
         surface = self.get_surface()
         if df_shapes is None:
@@ -827,7 +827,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
     def render(self):
         '''
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.12
             Add ``dynamic_electrode_state_shapes`` layer to show dynamic
             electrode actuations.
         '''

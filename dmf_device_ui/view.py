@@ -411,7 +411,7 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_electrode_states_updated(self, states):
         '''
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.12
             Refactor to use :meth:`on_electrode_states_set`.
         '''
         states['electrode_states'] = \
@@ -442,7 +442,7 @@ class DmfDeviceViewBase(SlaveView):
         canvas.
 
 
-        .. versionadded:: X.X.X
+        .. versionadded:: 0.12
         '''
         self.canvas_slave._dynamic_electrodes = states
 

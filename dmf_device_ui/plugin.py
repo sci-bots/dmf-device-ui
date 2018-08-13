@@ -29,7 +29,7 @@ class DevicePlugin(Plugin):
             Update routes table by setting ``df_routes`` property of
             :attr:`parent.canvas_slave`.
 
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.12
             Update ``dynamic_electrode_state_shapes`` layer of
             :attr:`parent.canvas_slave` when dynamic electrode actuation states
             change.
@@ -150,7 +150,7 @@ class DevicePlugin(Plugin):
 
     def on_execute__set_video_config(self, request):
         '''
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.12
             Accept empty video configuration as either `None` or an empty
             `pandas.Series`.
         '''
@@ -183,7 +183,7 @@ class DevicePlugin(Plugin):
 
     def on_execute__set_surface_alphas(self, request):
         '''
-        .. versionchanged:: X.X.X
+        .. versionchanged:: 0.12
             Queue redraw after setting surface alphas.
         '''
         data = decode_content_data(request)
