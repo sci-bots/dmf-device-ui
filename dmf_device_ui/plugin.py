@@ -149,10 +149,15 @@ class DevicePlugin(Plugin):
         self.parent.disable_video()
 
     def on_execute__set_video_config(self, request):
+        '''
+        .. versionchanged:: X.X.X
+            Accept empty video configuration as either `None` or an empty
+            `pandas.Series`.
+        '''
         data = decode_content_data(request)
         compare_fields = ['device_name', 'width', 'height', 'name', 'fourcc',
                           'framerate']
-        if data['video_config'] is None:
+        if data['video_config'] is None or not data['video_config'].shape[0]:
             i = None
         else:
             for i, row in self.parent.video_mode_slave.configs.iterrows():
