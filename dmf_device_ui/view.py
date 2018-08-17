@@ -568,6 +568,12 @@ class DmfDeviceViewBase(SlaveView):
         self.transform_slave.widget.set_sensitive(True)
 
     def on_canvas_slave__global_command(self, slave, group, command, data):
+        '''
+        .. versionadded:: 0.13
+
+            Execute global command (i.e., command not tied to a specific
+            electrode or route).
+        '''
         def command_callback(reply):
             _L().debug('%s.%s()', group, command)
             # Decode content to raise error, if necessary.

@@ -34,6 +34,10 @@ class DevicePlugin(Plugin):
             Update ``dynamic_electrode_state_shapes`` layer of
             :attr:`parent.canvas_slave` when dynamic electrode actuation states
             change.
+
+        .. versionchanged:: 0.13
+            Update local global, electrode, and route command lists in response
+            to ``microdrop.command_plugin`` messages.
         '''
         try:
             msg_frames = (self.command_socket

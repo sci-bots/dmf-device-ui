@@ -99,7 +99,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('electrode-mouseover', object)
     gsignal('electrode-pair-selected', object)
     gsignal('electrode-selected', object)
-    #: .. versionadded:: X.X.X
+    #: .. versionadded:: 0.13
     gsignal('global-command', str, str, object)
     gsignal('key-press', object)
     gsignal('key-release', object)
@@ -165,7 +165,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         self.default_corners = {}  # {'canvas': None, 'frame': None}
 
-        #: .. versionadded:: X.X.X
+        #: .. versionadded:: 0.13
         #:     Registered global commands
         self.global_commands = OrderedDict()
         # Registered electrode commands
@@ -1014,6 +1014,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         -------
         gtk.Menu
             Context menu.
+
+
+        .. versionchanged:: 0.13
+            - Deprecate hard-coded commands (e.g., clear electrodes, clear
+              routes).
+            - Add anonymous global commands section at head of menu (i.e.,
+              commands not specific to an electrode or route).
+            - Add "Electrode" and "Route(s)" sub-menus.
         '''
         routes = self.df_routes.loc[self.df_routes.electrode_i == shape,
                                     'route_i'].astype(int).unique().tolist()
@@ -1213,6 +1221,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     # ## Electrode operation registration ##
     def register_global_command(self, command, title=None, group=None):
         '''
+        .. versionadded:: 0.13
+
+
         Register global command (i.e., not specific to electrode or route).
 
         Add global command to context menu.
