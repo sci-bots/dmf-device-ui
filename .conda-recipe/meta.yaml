@@ -15,6 +15,9 @@ requirements:
   build:
     #: .. versionadded:: 0.10
     - debounce
+    #: .. versionadded:: X.X.X
+    #:     Add logging specific to method context.
+    - logging-helpers >=0.4
     - microdrop >=2.0.post22.dev158803465
     - microdrop-utility >=0.4
     - networkx >=1.10
@@ -33,6 +36,9 @@ requirements:
   run:
     #: .. versionadded:: 0.10
     - debounce
+    #: .. versionadded:: X.X.X
+    #:     Add logging specific to method context.
+    - logging-helpers >=0.4
     - microdrop >=2.0.post22.dev158803465
     - microdrop-utility >=0.4
     - networkx >=1.10
