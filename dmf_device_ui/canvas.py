@@ -67,7 +67,7 @@ class Route(object):
                         # Electrodes are connected, so append target to current
                         # route.
                         do_append = True
-                except IndexError, exception:
+                except IndexError:
                     logger.warning('Electrodes `%s` and `%s` are not '
                                    'connected.', source, target)
 
