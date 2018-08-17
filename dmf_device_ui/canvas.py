@@ -1026,7 +1026,7 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                     return
                 callback_called.set()
 
-                _L().info('`%s`: %s %s %s', signal, group, command, data)
+                _L().debug('`%s`: %s %s %s', signal, group, command, data)
                 gtk.idle_add(self.emit, command_signal, group, command, data)
             menu_item.connect('activate', ft.partial(_callback, 'activate'))
             menu_item.connect('button-press-event',

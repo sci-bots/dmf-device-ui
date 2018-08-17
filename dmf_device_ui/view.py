@@ -569,7 +569,7 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_canvas_slave__global_command(self, slave, group, command, data):
         def command_callback(reply):
-            _L().info('%s.%s()', group, command)
+            _L().debug('%s.%s()', group, command)
             # Decode content to raise error, if necessary.
             try:
                 decode_content_data(reply)
@@ -580,15 +580,15 @@ class DmfDeviceViewBase(SlaveView):
     def on_canvas_slave__electrode_command(self, slave, group, command,
                                            electrode_data):
         def command_callback(reply):
-            logger.info('[on_canvas_slave__electrode_command] %s.%s(%r)',
-                        group, command, electrode_data['electrode_id'])
+            _L().debug('%s.%s(%r)', group, command,
+                       electrode_data['electrode_id'])
             # Decode content to raise error, if necessary.
             try:
                 decode_content_data(reply)
             except Exception:
-                logger.error('Electrode command error: %s.%s(%r)', group,
-                             command, electrode_data['electrode_id'],
-                             exc_info=True)
+                _L().error('Electrode command error: %s.%s(%r)', group,
+                           command, electrode_data['electrode_id'],
+                           exc_info=True)
         self.plugin.execute_async(group, command,
                                   electrode_id=electrode_data['electrode_id'],
                                   callback=command_callback)
@@ -596,14 +596,13 @@ class DmfDeviceViewBase(SlaveView):
     def on_canvas_slave__route_command(self, slave, group, command,
                                        route_data):
         def command_callback(reply):
-            logger.info('[on_canvas_slave__route_command] %s.%s(%r)', group,
-                        command, route_data['route_ids'])
+            _L().debug('%s.%s(%r)', group, command, route_data['route_ids'])
             # Decode content to raise error, if necessary.
             try:
                 decode_content_data(reply)
             except Exception:
-                logger.error('Route command error: %s.%s(%r)', group, command,
-                             route_data['route_ids'], exc_info=True)
+                _L().error('Route command error: %s.%s(%r)', group, command,
+                           route_data['route_ids'], exc_info=True)
         self.plugin.execute_async(group, command,
                                   route_ids=route_data['route_ids'],
                                   callback=command_callback)

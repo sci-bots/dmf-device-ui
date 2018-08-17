@@ -94,8 +94,6 @@ class DevicePlugin(Plugin):
                                                  'unregister_command',
                                                  'register_command'):
                     df_commands = decode_content_data(msg).set_index('namespace')
-                    _L().info('`%s()` -> `%s`', msg['content']['command'],
-                              df_commands)
 
                     for group_i, df_i in df_commands.groupby('namespace'):
                         register = getattr(self.parent.canvas_slave,
@@ -108,8 +106,8 @@ class DevicePlugin(Plugin):
                                 register(command_ij.command_name,
                                          title=command_ij.title,
                                          group=command_ij.plugin_name)
-                                _L().info('registered %s command: `%s`',
-                                          group_i, command_ij)
+                                _L().debug('registered %s command: `%s`',
+                                           group_i, command_ij)
             else:
                 self.most_recent = msg_json
         except zmq.Again:
