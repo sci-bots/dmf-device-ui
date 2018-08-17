@@ -5,6 +5,7 @@ import subprocess as sp
 import sys
 
 from cairo_helpers.surface import flatten_surfaces
+from logging_helpers import _L
 from microdrop_utility.gui import register_shortcuts
 from opencv_helpers.safe_cv import cv2
 from pygst_utils.video_view.mode import VideoModeSelector
@@ -289,51 +290,6 @@ class DmfDeviceViewBase(SlaveView):
         df_routes = slave.df_routes.loc[slave.df_routes.route_i >= 0].copy()
         self.canvas_slave.df_routes = pd.concat([df_routes, df_route])
 
-    def on_canvas_slave__clear_routes(self, slave, electrode_id):
-        def refresh_routes(reply):
-            # Request routes.
-            self.plugin.execute_async('droplet_planning_plugin',
-                                      'get_routes')
-        self.plugin.execute_async('droplet_planning_plugin',
-                                  'clear_routes', electrode_id=electrode_id,
-                                  callback=refresh_routes)
-
-    def on_canvas_slave__clear_electrode_states(self, slave):
-        if self.plugin is not None:
-            (self.plugin.execute('microdrop.electrode_controller_plugin',
-                                 'set_electrode_states',
-                                 electrode_states=pd
-                                 .Series(0, dtype=int,
-                                         index=self.canvas_slave.device
-                                         .electrodes)))
-
-    def on_canvas_slave__execute_routes(self, slave, electrode_id):
-        self.plugin.execute_async('droplet_planning_plugin',
-                                  'execute_routes', electrode_id=electrode_id)
-
-    def on_canvas_slave__set_electrode_channels(self, slave, electrode_id,
-                                                channels):
-        def command_callback(reply):
-            logger.info('[on_canvas_slave__set_electrode_channels] %s: %s',
-                        electrode_id, channels)
-            # Decode content to raise error, if necessary.
-            try:
-                modified = decode_content_data(reply)
-            except Exception:
-                logger.error('Error setting electrode channels: %s: %s',
-                             electrode_id, channels, exc_info=True)
-            else:
-                if modified:
-                    self.canvas_slave.canvas = None
-                    # Device channels were modified, so request device refresh.
-                    self.plugin.execute_async('microdrop.device_info_plugin',
-                                              'get_device')
-        self.plugin.execute_async('microdrop.device_info_plugin',
-                                  'set_electrode_channels',
-                                  electrode_id=electrode_id,
-                                  channels=channels,
-                                  callback=command_callback)
-
     def on_canvas_slave__surfaces_reset(self, slave, df_surfaces):
         logger.debug('[surfaces reset]\n%s', df_surfaces)
         self.layer_alpha_slave.set_surfaces(df_surfaces)
@@ -350,14 +306,6 @@ class DmfDeviceViewBase(SlaveView):
         logger.info('[layers reordered] %s', reordered_index)
         self.canvas_slave.reorder_surfaces(reordered_index)
         gtk.idle_add(self.canvas_slave.draw)
-
-    def on_canvas_slave__measure_liquid_capacitance(self, slave):
-        self.plugin.execute_async('dropbot_plugin',
-                                  'measure_liquid_capacitance')
-
-    def on_canvas_slave__measure_filler_capacitance(self, slave):
-        self.plugin.execute_async('dropbot_plugin',
-                                  'measure_filler_capacitance')
 
     ###########################################################################
     # ZeroMQ plugin callbacks
@@ -618,6 +566,16 @@ class DmfDeviceViewBase(SlaveView):
 
     def on_canvas_slave__video_enabled(self, slave):
         self.transform_slave.widget.set_sensitive(True)
+
+    def on_canvas_slave__global_command(self, slave, group, command, data):
+        def command_callback(reply):
+            _L().info('%s.%s()', group, command)
+            # Decode content to raise error, if necessary.
+            try:
+                decode_content_data(reply)
+            except Exception:
+                _L().error('Global command error.', exc_info=True)
+        self.plugin.execute_async(group, command, callback=command_callback)
 
     def on_canvas_slave__electrode_command(self, slave, group, command,
                                            electrode_data):

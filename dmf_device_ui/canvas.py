@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 from collections import OrderedDict
 import itertools
+import functools as ft
 import logging
+import threading
 
 from cairo_helpers.surface import flatten_surfaces
+from logging_helpers import _L
 from pygtkhelpers.ui.views.shapes_canvas_view import GtkShapesCanvasView
 from pygtkhelpers.utils import gsignal
 from pygst_utils.video_view.video_sink import VideoSink
@@ -15,8 +18,6 @@ import debounce
 import gtk
 import numpy as np
 import pandas as pd
-import pygtkhelpers as pgh
-import pygtkhelpers.schema
 
 logger = logging.getLogger(__name__)
 
@@ -92,15 +93,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     Signals are emitted as gobject signals.  See `emit` calls for payload
     formats.
     '''
-    gsignal('clear-electrode-states')
-    gsignal('clear-routes', object)
     gsignal('device-set', object)
     gsignal('electrode-command', str, str, object)
     gsignal('electrode-mouseout', object)
     gsignal('electrode-mouseover', object)
     gsignal('electrode-pair-selected', object)
     gsignal('electrode-selected', object)
-    gsignal('execute-routes', object)
+    #: .. versionadded:: X.X.X
+    gsignal('global-command', str, str, object)
     gsignal('key-press', object)
     gsignal('key-release', object)
     gsignal('route-command', str, str, object)
@@ -108,11 +108,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
     gsignal('route-selected', object)
     #: .. versionadded:: 0.11.3
     gsignal('routes-set', object)
-    gsignal('set-electrode-channels', str, object) # electrode_id, channels
     gsignal('surface-rendered', str, object)
     gsignal('surfaces-reset', object)
-    gsignal('measure-liquid-capacitance')
-    gsignal('measure-filler-capacitance')
 
     # Video signals
     gsignal('point-pair-selected', object)
@@ -168,6 +165,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
         self.default_corners = {}  # {'canvas': None, 'frame': None}
 
+        #: .. versionadded:: X.X.X
+        #:     Registered global commands
+        self.global_commands = OrderedDict()
         # Registered electrode commands
         self.electrode_commands = OrderedDict()
         # Register test command
@@ -1018,94 +1018,37 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         routes = self.df_routes.loc[self.df_routes.electrode_i == shape,
                                     'route_i'].astype(int).unique().tolist()
 
-        def clear_electrode_states(widget):
-            self.emit('clear-electrode-states')
+        def _connect_callback(menu_item, command_signal, group, command, data):
+            callback_called = threading.Event()
 
-        def edit_electrode_channels(widget):
-            # Create schema to only accept a well-formed comma-separated list
-            # of integer channel numbers.  Default to list of channels
-            # currently mapped to electrode.
-            if shape in self.electrode_channels.index:
-                # If there is a single channel mapped to the electrode,
-                # the `...ix[shape]` lookup below returns a `pandas.Series`.
-                # However, if multiple channels are mapped to the electrode
-                # the `...ix[shape]` lookup returns a `pandas.DataFrame`.
-                # Calling `.values.ravel()` returns data in the same form in
-                # either situation.
-                current_channels = (self.electrode_channels.ix[shape]
-                                    .values.ravel().tolist())
-            else:
-                # Electrode has no channels currently mapped to it.
-                current_channels = []
-            schema = {'type': 'object',
-                      'properties': {'channels':
-                                     {'type': 'string', 'pattern':
-                                      r'^(\d+\s*(,\s*\d+\s*)*)?$',
-                                      'default':
-                                      ','.join(map(str, current_channels))}}}
+            def _callback(signal, widget, *args):
+                if callback_called.is_set():
+                    return
+                callback_called.set()
 
-            try:
-                # Prompt user to enter a list of channel numbers (or nothing).
-                result = pgh.schema.schema_dialog(schema, device_name=False)
-            except ValueError:
-                pass
-            else:
-                # Well-formed (according to schema pattern) comma-separated
-                # list of channels was provided.
-                channels = sorted(set(map(int, filter(len, result['channels']
-                                                      .split(',')))))
-                self.emit('set-electrode-channels', shape, channels)
+                _L().info('`%s`: %s %s %s', signal, group, command, data)
+                gtk.idle_add(self.emit, command_signal, group, command, data)
+            menu_item.connect('activate', ft.partial(_callback, 'activate'))
+            menu_item.connect('button-press-event',
+                              ft.partial(_callback, 'button-press-event'))
 
-        def clear_routes(widget):
-            self.emit('clear-routes', shape)
-
-        def clear_all_routes(widget):
-            self.emit('clear-routes', None)
-
-        def execute_routes(widget):
-            self.emit('execute-routes', shape)
-
-        def execute_all_routes(widget):
-            self.emit('execute-routes', None)
-
-        def measure_liquid_capacitance(widget):
-            self.emit('measure-liquid-capacitance')
-
-        def measure_filler_capacitance(widget):
-            self.emit('measure-filler-capacitance')
+            if group is not None:
+                menu_item.set_tooltip_text(group)
 
         menu = gtk.Menu()
-        menu_separator = gtk.SeparatorMenuItem()
-        menu_clear_electrode_states = gtk.MenuItem('Clear all electrode '
-                                                   'states')
-        menu_clear_electrode_states.connect('activate', clear_electrode_states)
-        menu_edit_electrode_channels = gtk.MenuItem('Edit electrode '
-                                                    'channels...')
-        menu_edit_electrode_channels.connect('activate',
-                                             edit_electrode_channels)
-        menu_clear_routes = gtk.MenuItem('Clear electrode routes')
-        menu_clear_routes.connect('activate', clear_routes)
-        menu_clear_all_routes = gtk.MenuItem('Clear all electrode routes')
-        menu_clear_all_routes.connect('activate', clear_all_routes)
-        menu_execute_routes = gtk.MenuItem('Execute electrode routes')
-        menu_execute_routes.connect('activate', execute_routes)
-        menu_execute_all_routes = gtk.MenuItem('Execute all electrode '
-                                               'routes')
-        menu_execute_all_routes.connect('activate', execute_all_routes)
-        menu_measure_liquid_cap = gtk.MenuItem('Measure capacitance of liquid')
-        menu_measure_liquid_cap.connect('activate', measure_liquid_capacitance)
-        menu_measure_filler_cap = gtk.MenuItem('Measure capacitance of filler media')
-        menu_measure_filler_cap.connect('activate', measure_filler_capacitance)
 
-        for item in (menu_clear_electrode_states, menu_edit_electrode_channels,
-                     gtk.SeparatorMenuItem(),
-                     menu_clear_routes, menu_clear_all_routes,
-                     menu_execute_routes, menu_execute_all_routes,
-                     gtk.SeparatorMenuItem(),
-                     menu_measure_liquid_cap,
-                     menu_measure_filler_cap):
-            menu.append(item)
-            item.show()
+        # Add menu items/groups for registered global commands.
+        if self.global_commands:
+            data = {'event': event.copy()}
+            command_signal = 'global-command'
+
+            for group, commands in self.global_commands.iteritems():
+                for command, title in commands.iteritems():
+                    menu_item_j = gtk.MenuItem(title)
+                    menu.append(menu_item_j)
+
+                    _connect_callback(menu_item_j, command_signal, group,
+                                      command, data)
 
         # Add menu items/groups for registered electrode commands.
         if self.electrode_commands:
@@ -1114,12 +1057,14 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
             # Add electrode sub-menu.
             menu_e = gtk.Menu()
-            menu_head_e = gtk.MenuItem('Electrode')
+            menu_head_e = gtk.MenuItem('_Electrode')
             menu_head_e.set_submenu(menu_e)
-            menu_head_e.set_use_underline(False)
+            menu_head_e.set_use_underline(True)
             menu.append(menu_head_e)
 
-            electrode_data = {'electrode_id': shape, 'event': event.copy()}
+            command_signal = 'electrode-command'
+            data = {'electrode_id': shape, 'event': event.copy()}
+
             for group, commands in self.electrode_commands.iteritems():
                 if group is None:
                     menu_i = menu_e
@@ -1134,15 +1079,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                     menu_item_j = gtk.MenuItem(title)
                     menu_i.append(menu_item_j)
 
-                    def callback(group, command, electrode_data):
-                        # Closure for `callback` function to persist current
-                        # values `group, command, title` in callback.
-                        def wrapped(widget):
-                            gtk.idle_add(self.emit, 'electrode-command', group,
-                                         command, electrode_data)
-                        return wrapped
-                    menu_item_j.connect('activate', callback(group, command,
-                                                             electrode_data))
+                    _connect_callback(menu_item_j, command_signal, group,
+                                      command, data)
 
         # Add menu items/groups for registered route commands.
         if routes and self.route_commands:
@@ -1153,16 +1091,17 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
 
             # Add route sub-menu.
             menu_r = gtk.Menu()
-            menu_head_r = gtk.MenuItem('Route(s)')
+            menu_head_r = gtk.MenuItem('_Route(s)')
             menu_head_r.set_submenu(menu_r)
-            menu_head_r.set_use_underline(False)
+            menu_head_r.set_use_underline(True)
             menu.append(menu_head_r)
 
-            route_data = {'route_ids': routes, 'event': event.copy()}
+            command_signal = 'route-command'
+            data = {'route_ids': routes, 'event': event.copy()}
             for group, commands in self.route_commands.iteritems():
                 if group is None:
                     menu_i = menu_r
-                else:
+                # else:
                     # Add sub-menu for group.
                     menu_i = gtk.Menu()
                     menu_head_i = gtk.MenuItem(group)
@@ -1173,15 +1112,8 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
                     menu_item_j = gtk.MenuItem(title)
                     menu_i.append(menu_item_j)
 
-                    def callback(group, command, route_data):
-                        # Closure for `callback` function to persist current
-                        # values `group, command, title` in callback.
-                        def wrapped(widget):
-                            gtk.idle_add(self.emit, 'route-command', group,
-                                         command, route_data)
-                        return wrapped
-                    menu_item_j.connect('activate', callback(group, command,
-                                                             route_data))
+                    _connect_callback(menu_item_j, command_signal, group,
+                                      command, data)
 
         menu.show_all()
         return menu
@@ -1298,6 +1230,17 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
         self.draw()
     ###########################################################################
     # ## Electrode operation registration ##
+    def register_global_command(self, command, title=None, group=None):
+        '''
+        Register global command (i.e., not specific to electrode or route).
+
+        Add global command to context menu.
+        '''
+        commands = self.global_commands.setdefault(group, OrderedDict())
+        if title is None:
+            title = (command[:1].upper() + command[1:]).replace('_', ' ')
+        commands[command] = title
+
     def register_electrode_command(self, command, title=None, group=None):
         '''
         Register electrode command.
