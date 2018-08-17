@@ -2,6 +2,7 @@
 import json
 import logging
 
+from logging_helpers import _L
 from pygtkhelpers.delegates import SlaveView
 from pygtkhelpers.utils import gsignal
 from zmq_plugin.plugin import Plugin
@@ -33,6 +34,10 @@ class DevicePlugin(Plugin):
             Update ``dynamic_electrode_state_shapes`` layer of
             :attr:`parent.canvas_slave` when dynamic electrode actuation states
             change.
+
+        .. versionchanged:: 0.13
+            Update local global, electrode, and route command lists in response
+            to ``microdrop.command_plugin`` messages.
         '''
         try:
             msg_frames = (self.command_socket
@@ -85,6 +90,28 @@ class DevicePlugin(Plugin):
                 elif msg['content']['command'] in ('get_routes', ):
                     data = decode_content_data(msg)
                     self.parent.canvas_slave.df_routes = data
+            elif ((source == 'microdrop.command_plugin') and
+                  (msg_type == 'execute_reply')):
+                msg = json.loads(msg_json)
+
+                if msg['content']['command'] in ('get_commands',
+                                                 'unregister_command',
+                                                 'register_command'):
+                    df_commands = decode_content_data(msg).set_index('namespace')
+
+                    for group_i, df_i in df_commands.groupby('namespace'):
+                        register = getattr(self.parent.canvas_slave,
+                                           'register_%s_command' % group_i,
+                                           None)
+                        if register is None:
+                            continue
+                        else:
+                            for j, command_ij in df_i.iterrows():
+                                register(command_ij.command_name,
+                                         title=command_ij.title,
+                                         group=command_ij.plugin_name)
+                                _L().debug('registered %s command: `%s`',
+                                           group_i, command_ij)
             else:
                 self.most_recent = msg_json
         except zmq.Again:
@@ -193,45 +220,6 @@ class DevicePlugin(Plugin):
             self.parent.canvas_slave.set_surface_alpha(name, alpha)
         self.parent.canvas_slave.render()
         gobject.idle_add(self.parent.canvas_slave.draw)
-
-    def on_execute__clear_electrode_commands(self, request):
-        data = decode_content_data(request)
-        logger.info('[clear_electrode_commands] %s', data)
-        if 'plugin_name' in data and (data['plugin_name'] in
-                                      self.parent.canvas_slave
-                                      .electrode_commands):
-            del (self.parent.canvas_slave
-                 .electrode_commands[data['plugin_name']])
-        else:
-            self.parent.canvas_slave.electrode_commands.clear()
-
-    def on_execute__register_electrode_command(self, request):
-        data = decode_content_data(request)
-        logger.info('[register_electrode_command] %s', data)
-        plugin_name = data.get('plugin_name', request['header']['source'])
-        self.parent.canvas_slave.register_electrode_command(data['command'],
-                                                            group=plugin_name,
-                                                            title=data
-                                                            .get('title'))
-
-    def on_execute__clear_route_commands(self, request):
-        data = decode_content_data(request)
-        logger.info('[clear_route_commands] %s', data)
-        if 'plugin_name' in data and (data['plugin_name'] in
-                                      self.parent.canvas_slave
-                                      .route_commands):
-            del self.parent.canvas_slave.route_commands[data['plugin_name']]
-        else:
-            self.parent.canvas_slave.route_commands.clear()
-
-    def on_execute__register_route_command(self, request):
-        data = decode_content_data(request)
-        logger.info('[register_route_command] %s', data)
-        plugin_name = data.get('plugin_name', request['header']['source'])
-        self.parent.canvas_slave.register_route_command(data['command'],
-                                                        group=plugin_name,
-                                                        title=data
-                                                        .get('title'))
 
 
 class PluginConnection(SlaveView):
