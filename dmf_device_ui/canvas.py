@@ -1066,19 +1066,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             data = {'electrode_id': shape, 'event': event.copy()}
 
             for group, commands in self.electrode_commands.iteritems():
-                if group is None:
-                    menu_i = menu_e
-                else:
-                    # Add sub-menu for group.
-                    menu_i = gtk.Menu()
-                    menu_head_i = gtk.MenuItem(group)
-                    menu_head_i.set_submenu(menu_i)
-                    menu_head_i.set_use_underline(False)
-                    menu_e.append(menu_head_i)
                 for command, title in commands.iteritems():
                     menu_item_j = gtk.MenuItem(title)
-                    menu_i.append(menu_item_j)
-
+                    menu_e.append(menu_item_j)
                     _connect_callback(menu_item_j, command_signal, group,
                                       command, data)
 
@@ -1099,18 +1089,9 @@ class DmfDeviceCanvas(GtkShapesCanvasView):
             command_signal = 'route-command'
             data = {'route_ids': routes, 'event': event.copy()}
             for group, commands in self.route_commands.iteritems():
-                if group is None:
-                    menu_i = menu_r
-                # else:
-                    # Add sub-menu for group.
-                    menu_i = gtk.Menu()
-                    menu_head_i = gtk.MenuItem(group)
-                    menu_head_i.set_submenu(menu_i)
-                    menu_head_i.set_use_underline(False)
-                    menu_r.append(menu_head_i)
                 for command, title in commands.iteritems():
                     menu_item_j = gtk.MenuItem(title)
-                    menu_i.append(menu_item_j)
+                    menu_r.append(menu_item_j)
 
                     _connect_callback(menu_item_j, command_signal, group,
                                       command, data)
