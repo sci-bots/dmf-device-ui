@@ -137,10 +137,22 @@ class DmfDeviceViewBase(SlaveView):
         self.register_shortcuts()
 
     def register_shortcuts(self):
+        '''
+        .. versionchanged:: 0.14
+            Add keyboard shortcuts to set neighbouring electrode states based
+            on directional input using ``<Control>`` key plus the corresponding
+            direction (e.g., ``<Control>Up``)
+        '''
         def control_protocol(command):
             if self.plugin is not None:
                 self.plugin.execute_async('microdrop.gui.protocol_controller',
                                           command)
+
+        def actuate_direction(direction):
+            if self.plugin is not None:
+                self.plugin.execute_async('microdrop.electrode_controller_plugin',
+                                          'set_electrode_direction_states',
+                                          direction=direction)
 
         # Tie shortcuts to protocol controller commands (next, previous, etc.)
         shortcuts = {'<Control>r': lambda *args:
@@ -150,7 +162,12 @@ class DmfDeviceViewBase(SlaveView):
                      'A': lambda *args: control_protocol('first_step'),
                      'S': lambda *args: control_protocol('prev_step'),
                      'D': lambda *args: control_protocol('next_step'),
-                     'F': lambda *args: control_protocol('last_step')}
+                     'F': lambda *args: control_protocol('last_step'),
+                     '<Control>Up': lambda *args: actuate_direction('up'),
+                     '<Control>Down': lambda *args: actuate_direction('down'),
+                     '<Control>Left': lambda *args: actuate_direction('left'),
+                     '<Control>Right': lambda *args:
+                     actuate_direction('right')}
         register_shortcuts(self.widget.parent, shortcuts)
 
     def cleanup(self):

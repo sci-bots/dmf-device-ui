@@ -18,7 +18,10 @@ requirements:
     #: .. versionadded:: 0.13
     #:     Add logging specific to method context.
     - logging-helpers >=0.4
-    - microdrop >=2.0.post22.dev158803465
+    #: .. versionchanged:: 0.14
+    #:     Add `set_electrode_direction_states()` to electrode controller
+    #:     ZeroMQ API.
+    - microdrop >=2.28
     - microdrop-utility >=0.4
     - networkx >=1.10
     - opencv-helpers >=0.1.post1
@@ -39,7 +42,10 @@ requirements:
     #: .. versionadded:: 0.13
     #:     Add logging specific to method context.
     - logging-helpers >=0.4
-    - microdrop >=2.0.post22.dev158803465
+    #: .. versionchanged:: 0.14
+    #:     Add `set_electrode_direction_states()` to electrode controller
+    #:     ZeroMQ API.
+    - microdrop >=2.28
     - microdrop-utility >=0.4
     - networkx >=1.10
     - opencv-helpers >=0.1.post1
