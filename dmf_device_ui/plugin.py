@@ -77,10 +77,6 @@ class DevicePlugin(Plugin):
                     else:
                         #self.emit('electrode-states-set', data)
                         self.parent.on_electrode_states_set(data)
-                elif msg['content']['command'] == \
-                    'set_dynamic_electrode_states':
-                    data = decode_content_data(msg)
-                    self.parent.on_dynamic_electrode_states_set(data)
             elif ((source == 'droplet_planning_plugin') and
                   (msg_type == 'execute_reply')):
                 msg = json.loads(msg_json)
@@ -220,6 +216,15 @@ class DevicePlugin(Plugin):
             self.parent.canvas_slave.set_surface_alpha(name, alpha)
         self.parent.canvas_slave.render()
         gobject.idle_add(self.parent.canvas_slave.draw)
+
+    def on_execute__set_dynamic_electrode_states(self, request):
+        '''
+        .. versionadded:: 0.15
+
+        Set dynamic electrode states.
+        '''
+        data = decode_content_data(request)
+        self.parent.on_dynamic_electrode_states_set(data['electrode_states'])
 
 
 class PluginConnection(SlaveView):
